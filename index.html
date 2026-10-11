@@ -1,0 +1,1460 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--ARTIFACT-START-->
+<title>Explorador Anatômico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: viewport 3D em tela cheia; instrumentos flutuantes nas bordas, como um console de planetário */
+:root{
+  --bg:#070b10;
+  --bg-2:#0f1822;
+  --panel:rgba(12,18,26,.86);
+  --panel-solid:#0d141c;
+  --line:rgba(190,212,230,.12);
+  --line-2:rgba(190,212,230,.24);
+  --fg:#e6eaee;
+  --muted:#8d99a6;
+  --faint:#5a6672;
+  --bone:#eadfc8;
+  --sel:#ff9466;
+  --f-display:'Instrument Serif','Iowan Old Style',Georgia,serif;
+  --f-ui:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+
+#stage{position:fixed;inset:0;background:radial-gradient(110% 85% at 55% 42%,#13202d 0%,#0a1119 52%,#05080c 100%)}
+#stage canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+
+.glass{background:var(--panel);border:1px solid var(--line);border-radius:14px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+
+/* ---------- painel lateral ---------- */
+.panel{position:fixed;z-index:6;top:calc(16px + env(safe-area-inset-top,0px));left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:320px;display:flex;flex-direction:column;overflow:hidden}
+.brand{padding:16px 18px 12px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:12px}
+.brand-txt{flex:1;min-width:0}
+.brand h1{font:400 27px/1 var(--f-display);margin:0;letter-spacing:.2px;text-wrap:balance}
+.brand h1 i{color:var(--bone)}
+.brand p{margin:6px 0 0;color:var(--muted);font-size:12px}
+.close-panel{display:none;border:0;background:transparent;width:32px;height:32px;border-radius:8px;font-size:20px;line-height:1;color:var(--muted)}
+.search{position:relative;padding:12px 14px 10px}
+.search input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:10px;padding:9px 12px 9px 34px;font-size:13.5px}
+.search input::placeholder{color:var(--faint)}
+.search svg{position:absolute;left:26px;top:22px;width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:2}
+.results{position:absolute;left:14px;right:14px;top:52px;background:var(--panel-solid);border:1px solid var(--line-2);border-radius:10px;padding:4px;z-index:3;box-shadow:0 18px 40px rgba(0,0,0,.5);max-height:320px;overflow:auto}
+.results button{display:flex;width:100%;gap:10px;align-items:center;text-align:left;background:transparent;border:0;border-radius:7px;padding:7px 9px}
+.results button:hover,.results button.on{background:rgba(255,255,255,.07)}
+.results small{color:var(--muted);font-size:11.5px;margin-left:auto;white-space:nowrap}
+.results em{font-family:var(--f-display);color:var(--muted);font-size:14px}
+.scroll{flex:1;min-height:0;overflow:auto;padding-bottom:12px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.sec-h{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 6px}
+.sec-h h2{font:600 10.5px/1 var(--f-ui);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0}
+.link{background:none;border:0;color:var(--muted);font-size:12px;padding:2px 4px;border-radius:5px}
+.link:hover{color:var(--fg)}
+
+.layer{display:grid;grid-template-columns:30px 1fr 70px;align-items:center;gap:8px;padding:3px 14px 3px 12px}
+.eye{width:30px;height:26px;border-radius:7px;border:1px solid var(--line);background:transparent;display:grid;place-items:center;padding:0}
+.eye i{width:10px;height:10px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 22%,transparent)}
+.layer.off .eye i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--faint)}
+.layer.off .lname{color:var(--faint)}
+.lname{background:none;border:0;padding:4px 0;text-align:left;font-size:13.5px;display:flex;gap:6px;align-items:baseline;min-width:0}
+.lname small{color:var(--faint);font-size:11px;font-family:var(--f-mono)}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;width:100%;height:20px;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c,var(--bone)) var(--p,100%),var(--line-2) var(--p,100%))}
+input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:linear-gradient(90deg,var(--c,var(--bone)) var(--p,100%),var(--line-2) var(--p,100%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--fg);margin-top:-4.5px;border:0}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--fg);border:0}
+
+.seg{display:flex;gap:4px;margin:2px 14px 8px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:9px;padding:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:6px;padding:5px 2px;font-size:12px;color:var(--muted)}
+.seg button.on{background:rgba(255,255,255,.1);color:var(--fg)}
+.cutrow{padding:0 16px 6px}
+.cutrow[hidden]{display:none}
+.toggles{display:flex;flex-direction:column;gap:2px;padding:0 10px}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:0;padding:7px 8px;border-radius:8px;font-size:13.5px;text-align:left}
+.tg:hover{background:rgba(255,255,255,.04)}
+.tg b{width:30px;height:17px;border-radius:9px;background:var(--line-2);position:relative;flex:none;transition:background .2s}
+.tg b::after{content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--fg);transition:transform .2s}
+.tg[aria-pressed=true] b{background:#3d8a6e}
+.tg[aria-pressed=true] b::after{transform:translateX(13px)}
+
+.tree > details{border-top:1px solid var(--line)}
+.groups{padding:0 6px 8px 18px}
+.grp summary{padding:5px 10px;font-size:12.5px;color:var(--muted)}
+.grp summary::before{width:5px;height:5px}
+.grp[open] > summary{color:var(--fg)}
+.grp .items{padding:0 4px 6px 16px}
+.layer.loading .eye i{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+.lbl.feat{border-left-color:var(--bone);background:rgba(9,14,20,.68)}
+.lbl.feat span{font-weight:400;font-style:italic}
+.info .en{font-size:11.5px;color:var(--faint);margin:0 0 4px}
+.credit{font-size:11.5px;color:var(--faint);padding:10px 18px 4px;margin:0;line-height:1.5}
+.credit a{color:var(--muted)}
+.loadnote{font:12px var(--f-ui)!important;color:var(--faint)!important;margin-top:6px!important}
+.results .empty{padding:10px;color:var(--muted);font-size:13px}
+.toast{position:fixed;z-index:30;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));padding:10px 16px;border-radius:10px;font-size:13px}
+.tree details{border-top:1px solid var(--line)}
+.tree details:first-child{border-top:0}
+.tree summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 18px;font-size:13px;color:var(--fg)}
+.tree summary::-webkit-details-marker{display:none}
+.tree summary::before{content:"";width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(-45deg);transition:transform .15s;margin-right:2px}
+.tree details[open] summary::before{transform:rotate(45deg)}
+.tree summary i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.tree summary small{margin-left:auto;color:var(--faint);font-family:var(--f-mono);font-size:11px}
+.items{padding:0 8px 8px 30px;display:flex;flex-direction:column}
+.item{display:flex;align-items:center;gap:6px;border-radius:7px}
+.item:hover{background:rgba(255,255,255,.05)}
+.item.on{background:color-mix(in srgb,var(--sel) 16%,transparent)}
+.item.hid .iname{color:var(--faint);text-decoration:line-through}
+.iname{flex:1;min-width:0;background:none;border:0;text-align:left;padding:5px 8px;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side{border:1px solid var(--line);background:transparent;border-radius:5px;font:500 10.5px/1 var(--f-mono);color:var(--muted);padding:3px 5px}
+.side:hover{color:var(--fg);border-color:var(--line-2)}
+.item .side:last-child{margin-right:6px}
+
+/* ---------- destinos (topo) ---------- */
+.places{position:fixed;z-index:4;top:calc(16px + env(safe-area-inset-top,0px));left:352px;right:16px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.places::-webkit-scrollbar{display:none}
+.places span{flex:none;align-self:center;font:600 10.5px/1 var(--f-ui);letter-spacing:.13em;text-transform:uppercase;color:var(--muted);padding:0 6px 0 2px}
+.chip{flex:none;border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:999px;padding:6px 12px;font-size:12.5px;white-space:nowrap}
+.chip:hover{border-color:var(--line-2);background:rgba(30,42,56,.9)}
+.menu-btn{display:none}
+
+/* ---------- ficha da estrutura ---------- */
+.info{position:fixed;z-index:5;top:calc(62px + env(safe-area-inset-top,0px));right:16px;width:340px;max-height:calc(100% - 200px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.info-top{padding:16px 18px 0;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:6px;font:600 10.5px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.badge i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.x{margin-left:auto;width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--muted);font-size:18px;line-height:1}
+.x:hover{background:rgba(255,255,255,.06);color:var(--fg)}
+.info-body{padding:6px 18px 4px;overflow:auto;min-height:0}
+.info h3{font:400 32px/1.05 var(--f-display);margin:6px 0 0;text-wrap:balance}
+.latin{font:italic 400 18px/1.2 var(--f-display);color:var(--bone);margin:4px 0 0}
+.where{font:12px/1.4 var(--f-mono);color:var(--muted);margin:10px 0 0}
+.desc{margin:12px 0 4px;color:#cfd6dc;font-size:14px;line-height:1.55;max-width:62ch}
+.info-actions{display:flex;gap:6px;padding:12px 18px 16px;flex-wrap:wrap}
+.btn{border:1px solid var(--line-2);background:rgba(255,255,255,.04);border-radius:9px;padding:7px 12px;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:rgba(255,255,255,.09)}
+.btn.primary{background:var(--bone);color:#16130d;border-color:var(--bone)}
+.btn.primary:hover{background:#f5ecd8}
+
+/* ---------- barra de status e controles ---------- */
+.status{position:fixed;z-index:4;left:352px;right:96px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;pointer-events:none}
+.status-in{pointer-events:auto;display:flex;align-items:center;gap:14px;padding:8px 14px;border-radius:11px;font:12px/1.2 var(--f-mono);color:var(--muted);flex-wrap:wrap;justify-content:center;font-variant-numeric:tabular-nums}
+.status-in b{color:var(--fg);font-weight:500}
+.status-in .sep{width:1px;height:14px;background:var(--line-2)}
+.nav{position:fixed;z-index:4;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:8px}
+.compass{width:64px;height:64px;border-radius:50%;padding:0;border:1px solid var(--line);background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);position:relative}
+.compass svg{position:absolute;inset:0;width:100%;height:100%}
+.compass text{font:600 10px var(--f-mono);fill:var(--muted);text-anchor:middle;dominant-baseline:central}
+.compass text.a{fill:var(--sel)}
+.navgrp{display:flex;flex-direction:column;border-radius:11px;overflow:hidden}
+.navgrp button{width:40px;height:38px;border:0;background:transparent;display:grid;place-items:center;border-top:1px solid var(--line);font:500 11px var(--f-mono);color:var(--fg)}
+.navgrp button:first-child{border-top:0}
+.navgrp button:hover{background:rgba(255,255,255,.07)}
+.navgrp svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+
+.tip{position:fixed;z-index:8;pointer-events:none;background:var(--panel-solid);border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;font-size:12.5px;white-space:nowrap;transform:translate(14px,14px);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.tip em{font-family:var(--f-display);color:var(--bone);font-size:14px;margin-left:6px}
+.iso-banner{position:fixed;z-index:5;left:50%;transform:translateX(-50%);top:calc(62px + env(safe-area-inset-top,0px));display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:999px;font-size:13px}
+.hint{position:fixed;z-index:3;left:352px;bottom:calc(66px + env(safe-area-inset-bottom,0px));color:var(--faint);font-size:12px;line-height:1.6;pointer-events:none}
+.hint kbd{font:11px var(--f-mono);border:1px solid var(--line-2);border-radius:4px;padding:0 4px;color:var(--muted)}
+
+.loader{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:var(--bg);transition:opacity .6s}
+.loader.done{opacity:0;pointer-events:none}
+.loader div{text-align:center}
+.loader h2{font:400 34px/1 var(--f-display);margin:0}
+.loader p{font:12px var(--f-mono);color:var(--muted);margin:12px 0 0}
+.bar{width:220px;height:2px;background:var(--line);margin:18px auto 0;border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--bone);transition:width .25s}
+
+.labels{position:fixed;inset:0;z-index:3;pointer-events:none}
+#leaders{position:fixed;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+#leaders path{stroke:rgba(230,236,240,.55);stroke-width:1;fill:rgba(230,236,240,.75)}
+.lbl{position:absolute;left:0;top:0;pointer-events:auto;text-align:left;background:rgba(9,14,20,.8);border:1px solid var(--line);border-left:2px solid var(--c);border-radius:6px;padding:3px 8px 4px;font-size:11.5px;line-height:1.25;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);will-change:transform}
+.lbl span{display:block;color:var(--fg);font-weight:500}
+.lbl small{display:block;color:var(--muted);font-size:10px}
+.lbl:hover{border-color:var(--line-2);background:rgba(20,28,38,.92)}
+.tours{display:flex;flex-direction:column;gap:6px;padding:2px 14px 6px}
+.tourbtn{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--line);background:rgba(255,255,255,.035);border-radius:10px;padding:9px 12px}
+.tourbtn b{font-weight:600;font-size:13.5px}
+.tourbtn span{color:var(--muted);font-size:12px;line-height:1.35}
+.tourbtn:hover{border-color:var(--line-2);background:rgba(255,255,255,.06)}
+.tour{position:fixed;z-index:6;top:calc(62px + env(safe-area-inset-top,0px));right:16px;width:380px;max-height:calc(100% - 180px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.tstep{font:11px var(--f-mono);color:var(--muted);margin-left:8px}
+.ttime{margin:8px 0 0;font:12px var(--f-mono);color:var(--muted)}
+.ttime b{color:var(--bone);font-weight:500}
+.ttotal{margin:6px 0 0;font-size:13px;color:var(--bone)}
+.ttotal:empty{display:none}
+.tprog{display:flex;gap:4px;padding:10px 18px 0}
+.tprog button{flex:1;height:6px;border:0;border-radius:3px;background:var(--line-2);padding:0}
+.tprog button.done{background:color-mix(in srgb,var(--sel) 55%,transparent)}
+.tprog button.on{background:var(--sel)}
+.btn:disabled{opacity:.4;cursor:default}
+.fig{margin:12px 0 4px;padding:8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.03)}
+.fig svg{display:block;width:100%;height:auto}
+.fig figcaption{font-size:11.5px;color:var(--muted);margin-top:6px}
+.dg text{fill:var(--fg);font:9.5px var(--f-ui)}
+.dg .dgi{fill:#4a3a30;font:italic 9px var(--f-ui)}
+.dg .dga{fill:var(--fg);font:9px var(--f-ui)}
+.dg .ld{stroke:rgba(230,236,240,.55);stroke-width:.8;fill:none}
+.dg .lp{fill:var(--fg)}
+body.touring .info,body.touring .iso-banner{display:none!important}
+.fig{cursor:zoom-in}
+.fig.big{position:fixed;z-index:40;inset:6% max(16px,calc(50% - 380px));margin:0;background:var(--panel-solid);border-color:var(--line-2);box-shadow:0 30px 90px rgba(0,0,0,.7);cursor:zoom-out;overflow:auto;display:flex;flex-direction:column;justify-content:center;padding:16px}
+.fig.big .dg text{font-size:9px}
+@media (max-width:860px){
+  .tour{left:16px;right:16px;width:auto;top:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-height:50%;z-index:7}
+  body.touring .status,body.touring .nav{display:none}
+  .panel{width:min(86vw,340px);transform:translateX(calc(-100% - 24px));transition:transform .28s ease;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .panel.open{transform:none}
+  .close-panel{display:block}
+  .menu-btn{display:inline-flex;flex:none}
+  .places{left:16px}
+  .status{left:16px;right:72px}
+  .status .opt{display:none}
+  .hint{display:none}
+  .info{left:16px;right:16px;width:auto;top:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-height:46%;z-index:7}
+  .info h3{font-size:27px}
+  .iso-banner{top:calc(60px + env(safe-area-inset-top,0px))}
+  .compass{width:52px;height:52px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+<div id="stage" aria-label="Visualização 3D do corpo humano"></div>
+
+<div class="loader" id="loader"><div><h2>Explorador Anatômico</h2><p id="loadMsg">Preparando a cena…</p><p class="loadnote">Modelos anatômicos reais (Z-Anatomy). O primeiro acesso baixa cerca de 20 MB.</p><div class="bar"><i id="loadBar"></i></div></div></div>
+
+<aside class="panel glass" id="panel" aria-label="Camadas e estruturas">
+  <div class="brand">
+    <div class="brand-txt">
+      <h1>Explorador <i>Anatômico</i></h1>
+      <p>Atlas Z-Anatomy · 16 camadas · <span id="partCount">0</span> estruturas</p>
+    </div>
+    <button class="close-panel" id="closePanel" aria-label="Fechar painel">×</button>
+  </div>
+  <div class="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Buscar: aorta, fêmur, nervo ciático…" autocomplete="off" aria-label="Buscar estrutura">
+    <div class="results" id="results" hidden></div>
+  </div>
+  <div class="scroll">
+    <div class="sec-h"><h2>Camadas</h2><button class="link" id="allOn">Mostrar todas</button></div>
+    <div id="layers"></div>
+
+    <div class="sec-h"><h2>Corte anatômico</h2></div>
+    <div class="seg" id="cutSeg" role="group" aria-label="Plano de corte">
+      <button data-cut="none" class="on">Nenhum</button>
+      <button data-cut="sag">Sagital</button>
+      <button data-cut="cor">Coronal</button>
+      <button data-cut="tra">Transversal</button>
+    </div>
+    <div class="cutrow" id="cutRow" hidden><input type="range" id="cutPos" min="0" max="1000" value="500" aria-label="Posição do corte"></div>
+
+    <div class="sec-h"><h2>Percursos animados</h2></div>
+    <div class="tours">
+      <button class="tourbtn" data-tour="comida"><b>Caminho da comida</b><span>Da boca ao canal anal em 11 etapas, pelos órgãos reais, com o tempo de cada fase</span></button>
+      <button class="tourbtn" data-tour="agua"><b>Caminho da água</b><span>Do gole à urina, passando por sangue, coração, pulmões e rins</span></button>
+    </div>
+
+    <div class="sec-h"><h2>Exibição</h2></div>
+    <div class="toggles">
+      <button class="tg" id="tgLabels" aria-pressed="true">Legendas na tela <b></b></button>
+      <button class="tg" id="tgFlow" aria-pressed="true">Fluxo sanguíneo <b></b></button>
+      <button class="tg" id="tgBeat" aria-pressed="true">Batimento e respiração <b></b></button>
+      <button class="tg" id="tgSpin" aria-pressed="false">Girar automaticamente <b></b></button>
+    </div>
+
+    <div class="sec-h"><h2>Estruturas</h2><button class="link" id="showHidden" hidden>Reexibir ocultas</button></div>
+    <div class="tree" id="tree"></div>
+    <p class="credit">Modelos 3D: <a href="https://www.z-anatomy.com" target="_blank" rel="noopener">Z-Anatomy</a> (CC BY-SA 4.0), baseados no BodyParts3D © DBCLS. Reduzidos e convertidos para a web; sistema genital removido para manter o corpo neutro.</p>
+  </div>
+</aside>
+
+<nav class="places" id="places" aria-label="Ir para região">
+  <button class="chip menu-btn" id="menuBtn" aria-label="Abrir camadas">☰ Camadas</button>
+  <span>Ir para</span>
+</nav>
+
+<div class="iso-banner glass" id="isoBanner" hidden><span id="isoTxt">Isolado</span><button class="btn" id="isoExit">Mostrar o corpo todo</button></div>
+
+<article class="info glass" id="info" hidden aria-live="polite">
+  <div class="info-top"><span class="badge" id="iBadge"><i></i><span></span></span><button class="x" id="iClose" aria-label="Fechar ficha">×</button></div>
+  <div class="info-body">
+    <h3 id="iName"></h3>
+    <p class="latin" id="iLatin"></p>
+    <p class="where" id="iWhere"></p>
+    <p class="desc" id="iDesc"></p>
+    <p class="en" id="iEn" hidden></p>
+    <div id="iFig"></div>
+  </div>
+  <div class="info-actions">
+    <button class="btn primary" id="iFocus">Aproximar</button>
+    <button class="btn" id="iIso">Isolar</button>
+    <button class="btn" id="iHide">Ocultar</button>
+  </div>
+</article>
+
+<div class="hint" id="hint">Arraste para girar · <kbd>Shift</kbd>/botão direito para mover · role para aproximar<br>Clique para identificar · duplo clique para voar até a estrutura</div>
+
+<div class="status" id="status-wrap"><div class="status-in glass" id="status">
+  <span><b id="sRegion">Corpo inteiro</b></span><span class="sep"></span>
+  <span id="sLevel">—</span><span class="sep opt"></span>
+  <span class="opt" id="sCoord">x 0,0 · y 0,0 · z 0,0 cm</span><span class="sep opt"></span>
+  <span class="opt">dist. <b id="sDist">0,00 m</b></span>
+</div></div>
+
+<div class="nav" id="nav">
+  <button class="compass" id="compass" aria-label="Bússola anatômica: voltar à vista frontal">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="23" fill="none" stroke="rgba(190,212,230,.2)"/>
+      <g id="cmpTicks"></g>
+      <text id="cA" class="a" x="32" y="9">A</text><text id="cP" x="32" y="55">P</text>
+      <text id="cE" x="55" y="32">E</text><text id="cD" x="9" y="32">D</text>
+      <circle cx="32" cy="32" r="2.5" fill="var(--bone)"/>
+    </svg>
+  </button>
+  <div class="navgrp glass">
+    <button id="zIn" aria-label="Aproximar"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="zOut" aria-label="Afastar"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button id="home" aria-label="Vista inicial"><svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7M6 10v9h12v-9"/></svg></button>
+  </div>
+  <div class="navgrp glass">
+    <button data-view="front" title="Vista anterior">Ant</button>
+    <button data-view="back" title="Vista posterior">Post</button>
+    <button data-view="side" title="Vista lateral">Lat</button>
+    <button data-view="top" title="Vista superior">Sup</button>
+  </div>
+</div>
+
+<svg id="leaders" aria-hidden="true"><path d=""/></svg>
+<div class="labels" id="labels"></div>
+
+<section class="tour glass" id="tour" hidden aria-live="polite">
+  <div class="info-top"><span class="badge" style="--c:var(--sel)"><i></i><span id="tName"></span></span><span class="tstep" id="tStep"></span><button class="x" id="tClose" aria-label="Encerrar percurso">×</button></div>
+  <div class="info-body">
+    <h3 id="tTitle"></h3>
+    <p class="ttime"><span>Duração real</span> <b id="tTime"></b></p>
+    <p class="desc" id="tText"></p>
+    <div id="tFig"></div>
+    <p class="ttotal" id="tTotal"></p>
+  </div>
+  <div class="tprog" id="tProg"></div>
+  <div class="info-actions">
+    <button class="btn" id="tPrev">Anterior</button>
+    <button class="btn primary" id="tPlay">Pausar</button>
+    <button class="btn" id="tNext">Próxima</button>
+    <button class="btn" id="tSpeed" title="Velocidade da animação">1×</button>
+  </div>
+</section>
+
+<div class="tip" id="tip" hidden></div>
+<div class="toast glass" id="toast" hidden role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/meshopt_decoder.js"></script>
+<script>
+(function () {
+'use strict';
+if (!window.THREE || !THREE.GLTFLoader) { document.getElementById('loadMsg').textContent = 'Não foi possível carregar o motor 3D (Three.js). Verifique a conexão e recarregue a página.'; return; }
+const BASE = 'modelos/';
+
+/* =====================================================================
+   Camadas (sistemas) e arquivos de modelo
+   ===================================================================== */
+const SYS = {
+  skin:      { name: 'Pele e unhas',          color: '#e6bfa3', on: true,  op: 0.3,  files: ['skin', 'hair'] },
+  muscle:    { name: 'Músculos',              color: '#b9504b', on: false, op: 1,    files: ['muscle'] },
+  fascia:    { name: 'Fáscias, bolsas e bainhas', color: '#d8c8a6', on: false, op: 0.55, files: ['fascia'] },
+  skeleton:  { name: 'Esqueleto',             color: '#e8ddc5', on: true,  op: 1,    files: ['skeleton'] },
+  joint:     { name: 'Articulações e ligamentos', color: '#9cc6cc', on: false, op: 1, files: ['joint'] },
+  heart:     { name: 'Coração',               color: '#c3343e', on: true,  op: 1,    files: ['heart'] },
+  artery:    { name: 'Artérias',              color: '#d8343f', on: true,  op: 1,    files: ['artery'] },
+  vein:      { name: 'Veias',                 color: '#3d6ad6', on: true,  op: 1,    files: ['vein'] },
+  resp:      { name: 'Respiratório',          color: '#e8a0aa', on: true,  op: 0.5,  files: ['resp'] },
+  digest:    { name: 'Digestório',            color: '#d99169', on: true,  op: 0.9,  files: ['digest'] },
+  urinary:   { name: 'Urinário',              color: '#c9a548', on: true,  op: 1,    files: ['urinary'] },
+  endocrine: { name: 'Endócrino',             color: '#a67fe0', on: true,  op: 1,    files: ['endocrine'] },
+  nervous:   { name: 'Nervoso',               color: '#f0cf4a', on: true,  op: 1,    files: ['nervous'] },
+  sense:     { name: 'Olhos e orelhas',       color: '#8fc7e8', on: true,  op: 1,    files: ['sense'] },
+  lymph:     { name: 'Linfático',             color: '#5cc49a', on: false, op: 1,    files: ['lymph'] },
+  cavity:    { name: 'Pleura e peritônio',    color: '#c7b6d6', on: false, op: 0.35, files: ['cavity'] }
+};
+const FILE_SYS = { hair: 'skin' };
+for (const k in SYS) SYS[k].files.forEach(f => { if (!FILE_SYS[f]) FILE_SYS[f] = k; });
+const FILE_MB = { skin: 1.1, hair: 0.03, skeleton: 3.2, joint: 2.4, fascia: 1.6, muscle: 6.9, artery: 3.7, heart: 0.4, vein: 2.3, urinary: 0.1, cavity: 0.4, resp: 0.5, endocrine: 0.1, digest: 0.9, sense: 0.8, nervous: 6.4, lymph: 1.0 };
+
+/* =====================================================================
+   Descrições em português (as demais estruturas mostram o resumo original em inglês)
+   ===================================================================== */
+const PT = {
+  'Femur': 'O maior e mais resistente osso do corpo, cerca de um quarto da altura. Sua cabeça encaixa no acetábulo formando a articulação do quadril; embaixo, os côndilos formam o joelho com a tíbia e a patela.',
+  'Patella': 'O maior osso sesamoide do corpo, envolto pelo tendão do quadríceps. Aumenta a alavanca na extensão do joelho.',
+  'Tibia': 'Osso medial e principal da perna, que suporta quase todo o peso. Sua borda anterior fica logo sob a pele, na canela.',
+  'Fibula': 'Osso fino e lateral da perna. Quase não carrega peso, mas estabiliza o tornozelo com o maléolo lateral.',
+  'Humerus': 'Osso do braço, do ombro ao cotovelo. O nervo radial contorna sua face posterior num sulco espiral.',
+  'Radius': 'Osso lateral do antebraço, do lado do polegar. Gira em torno da ulna na pronação e supinação.',
+  'Ulna': 'Osso medial do antebraço, do lado do dedo mínimo. Seu olécrano forma a ponta do cotovelo.',
+  'Scapula': 'Osso triangular e plano das costas. Sua cavidade glenoidal recebe a cabeça do úmero, formando o ombro.',
+  'Clavicle': 'Osso em forma de S que liga o esterno à escápula. É o primeiro osso a se ossificar no embrião e um dos mais fraturados.',
+  'Mandible': 'Único osso móvel do crânio e o mais forte da face. Articula-se com o temporal e sustenta os dentes inferiores.',
+  'Hyoid bone': 'Osso em U no pescoço que não se articula com nenhum outro osso. Ancora a língua e músculos da deglutição.',
+  'Frontal bone': 'Forma a testa e o teto das órbitas. Une-se aos parietais pela sutura coronal e contém os seios frontais.',
+  'Parietal bone': 'Par de ossos que forma o teto e as laterais do crânio, unidos pela sutura sagital.',
+  'Temporal bone': 'Abriga a orelha média e a interna na parte petrosa, o osso mais denso do corpo. Articula-se com a mandíbula.',
+  'Occipital bone': 'Base posterior do crânio. Pelo forame magno passa a transição entre bulbo e medula espinal.',
+  'Sphenoid bone': 'Osso em forma de borboleta no centro da base do crânio, articulado com todos os outros ossos cranianos. A sela túrcica abriga a hipófise.',
+  'Maxilla': 'Forma o maxilar superior, o palato duro e o assoalho das órbitas, e sustenta os dentes superiores. Contém os seios maxilares.',
+  'Zygomatic bone': 'O osso da maçã do rosto; com o temporal forma o arco zigomático, onde se prende o masseter.',
+  'Nasal bone': 'Pequeno osso que forma o dorso do nariz; o restante do nariz é cartilagem.',
+  'Sacrum': 'Cinco vértebras fundidas que encaixam a coluna entre os ossos do quadril.',
+  'Coccyx': 'De três a cinco pequenas vértebras fundidas, vestígio da cauda.',
+  'Hip bone': 'Fusão de ílio, ísquio e púbis. Os dois ossos do quadril e o sacro formam a pelve.',
+  'Talus': 'Osso do tornozelo que transmite o peso da tíbia ao pé; não tem nenhum músculo inserido.',
+  'Calcaneus': 'O osso do calcanhar, o maior do pé. Nele se insere o tendão do calcâneo (de Aquiles).',
+  'Nail plate': 'Lâmina de queratina dura produzida pela matriz ungueal. A unha da mão cresce cerca de 3 mm por mês e leva uns 6 meses para se renovar. A lúnula, meia-lua esbranquiçada na base, é a parte visível da matriz.',
+  'Nail plate (foot)': 'Unha do pé: cresce mais devagar que a da mão, cerca de 1 mm por mês, e leva de 12 a 18 meses para se renovar.',
+  'Liver': 'A maior glândula do corpo, com cerca de 1,5 kg. Produz bile, armazena glicogênio, sintetiza proteínas do sangue e neutraliza toxinas. Divide-se em 8 segmentos funcionais (de Couinaud), cada um com seus vasos.',
+  'Gallbladder': 'Bolsa sob o fígado que armazena e concentra a bile, liberada no duodeno após refeições gordurosas.',
+  'Pancreas': 'Glândula mista: produz enzimas digestivas e, nas ilhotas de Langerhans, os hormônios insulina e glucagon.',
+  'Stomach': 'Bolsa em J que armazena e digere o alimento com ácido clorídrico e pepsina. Vazio tem cerca de 50 ml; cheio, chega a 1,5 litro.',
+  'Oesophagus': 'Tubo muscular de 25 cm que leva o alimento da faringe ao estômago por ondas peristálticas, atravessando o diafragma.',
+  'Duodenum': 'Primeiro segmento do intestino delgado, em forma de C, que recebe a bile e o suco pancreático.',
+  'Jejunum': 'Jejuno e íleo somam de 6 a 7 metros enovelados no abdome. As vilosidades multiplicam a área de absorção de nutrientes.',
+  'Vermiform appendix': 'Pequeno tubo fechado preso ao ceco, rico em tecido linfoide. Sua inflamação é a apendicite.',
+  'Ascending colon': 'Sobe pelo lado direito do abdome a partir do ceco. O intestino grosso absorve água e sais e forma as fezes.',
+  'Transverse colon': 'Atravessa o abdome da direita para a esquerda, pendurado pelo mesocólon transverso.',
+  'Descending colon': 'Desce pelo lado esquerdo do abdome até a pelve, onde continua como sigmoide.',
+  'Sigmoid colon': 'Segmento em S que leva as fezes ao reto, onde ficam armazenadas até a evacuação.',
+  'Tongue': 'Órgão muscular da gustação, da mastigação e da fala, coberto por milhares de papilas gustativas.',
+  'Parotid gland': 'A maior glândula salivar, à frente da orelha. Seu ducto se abre na bochecha, perto do segundo molar superior.',
+  'Submandibular gland': 'Glândula salivar sob a mandíbula; produz cerca de 70% da saliva em repouso.',
+  'Sublingual gland': 'A menor das três grandes glândulas salivares, sob a língua, com secreção rica em muco.',
+  'Kidney': 'Cada rim tem cerca de 1 milhão de néfrons e filtra uns 180 litros de plasma por dia, produzindo de 1 a 2 litros de urina. O direito fica um pouco mais baixo por causa do fígado.',
+  'Renal pelvis': 'Funil que recolhe a urina dos cálices renais e a leva ao ureter.',
+  'Ureter': 'Tubo de 25 a 30 cm que leva a urina do rim à bexiga por contrações peristálticas.',
+  'Urinary bladder': 'Reservatório muscular da urina, com capacidade de 400 a 600 ml.',
+  'Urethra': 'Canal que leva a urina da bexiga ao exterior.',
+  'Trachea': 'Tubo de 10 a 12 cm sustentado por 16 a 20 anéis de cartilagem em forma de C.',
+  'Epiglottis': 'Lâmina de cartilagem que se fecha sobre a laringe na deglutição, desviando o alimento para o esôfago.',
+  'Thyroid gland': 'Glândula em forma de borboleta à frente da traqueia. Seus hormônios T3 e T4 regulam o metabolismo de todo o corpo.',
+  'Suprarenal gland': 'Sobre cada rim. O córtex produz cortisol e aldosterona; a medula, adrenalina e noradrenalina.',
+  'Pineal gland': 'Produz melatonina, que regula o ciclo sono-vigília conforme a luz do ambiente.',
+  'Adenohypophysis': 'Lobo anterior da hipófise. Produz hormônios que comandam tireoide, adrenais, gônadas, crescimento e lactação.',
+  'Neurohypophysis': 'Lobo posterior da hipófise. Libera o hormônio antidiurético e a ocitocina, produzidos no hipotálamo.',
+  'Spleen': 'Maior órgão linfoide. Filtra o sangue, remove hemácias velhas e armazena plaquetas e células de defesa.',
+  'Palatine tonsil': 'As amígdalas: tecido linfoide na garganta que faz a primeira defesa contra microrganismos.',
+  'Right atrium': 'Recebe o sangue pobre em oxigênio das veias cavas e do seio coronário. Na sua parede fica o nó sinoatrial, o marca-passo natural do coração.',
+  'Right ventricle': 'Bombeia o sangue venoso para os pulmões pelo tronco pulmonar. Sua parede é mais fina que a do ventrículo esquerdo porque a pressão pulmonar é baixa.',
+  'Left atrium': 'Recebe o sangue oxigenado das quatro veias pulmonares e o passa ao ventrículo esquerdo pela valva mitral.',
+  'Left ventricle': 'A câmara mais forte do coração, com parede de cerca de 1 cm. Lança o sangue oxigenado na aorta para todo o corpo.',
+  'Ascending aorta': 'Primeiro segmento da aorta, logo acima da valva aórtica; dela saem as artérias coronárias.',
+  'Thoracic aorta': 'A aorta, a maior artéria do corpo, forma o arco e desce pelo tórax à esquerda da coluna.',
+  'Abdominal aorta': 'Continua a aorta abaixo do diafragma e se divide nas ilíacas comuns na altura de L4.',
+  'Pulmonary trunk': 'Leva sangue pobre em oxigênio do ventrículo direito aos pulmões.',
+  'Superior vena cava': 'Recolhe o sangue da cabeça, pescoço, membros superiores e tórax e o entrega ao átrio direito.',
+  'Inferior vena cava (thoracic part)': 'A maior veia do corpo, trazendo o sangue de abdome, pelve e pernas ao átrio direito.',
+  'Inferior vena cava (abdominal part)': 'A maior veia do corpo; sobe à direita da aorta trazendo o sangue de abdome, pelve e pernas.',
+  'Hepatic portal vein': 'Reúne o sangue do intestino, estômago e baço, rico em nutrientes, e o leva ao fígado.',
+  'Hepatic veins': 'Levam o sangue já processado pelo fígado à veia cava inferior.',
+  'Corpus callosum': 'Feixe de cerca de 200 milhões de axônios que liga os dois hemisférios cerebrais.',
+  'Thalamus': 'Estação de retransmissão: quase toda informação sensorial, exceto o olfato, passa por ele antes de chegar ao córtex.',
+  'Hypothalamus': 'Controla temperatura, fome, sede, sono e, pela hipófise, grande parte do sistema endócrino.',
+  'Hippocampus': 'Estrutura em forma de cavalo-marinho no lobo temporal, essencial para formar novas memórias.',
+  'Amygdaloid body': 'Núcleo em forma de amêndoa que avalia ameaças e dá carga emocional às memórias.',
+  'Pons': 'Liga cerebelo e cérebro e participa do controle da respiração. Dela sai o nervo trigêmeo.',
+  'Medulla oblongata': 'Bulbo: abriga os centros que controlam respiração, frequência cardíaca e pressão arterial.',
+  'Midbrain': 'Mesencéfalo: contém a substância negra e centros de reflexos visuais e auditivos.',
+  'Precentral gyrus': 'Córtex motor primário: cada parte comanda os músculos de uma região do corpo (o homúnculo motor).',
+  'Postcentral gyrus': 'Córtex somatossensorial primário: recebe tato, dor, temperatura e posição do corpo.',
+  'Caudate nucleus': 'Núcleo da base em forma de C que participa do planejamento dos movimentos e do aprendizado.',
+  'Putamen': 'Núcleo da base que, com o caudado, forma o estriado; regula movimentos e hábitos.',
+  'Lateral ventricle': 'Maior cavidade do encéfalo, cheia de líquido cerebrospinal produzido pelo plexo corioide.',
+  'Sciatic nerve': 'O nervo mais longo e grosso do corpo, da espessura de um dedo. Desce atrás da coxa e se divide em tibial e fibular comum.',
+  'Femoral nerve': 'Maior ramo do plexo lombar. Inerva o quadríceps e a pele da frente da coxa.',
+  'Median nerve': 'Passa pelo túnel do carpo, onde sua compressão causa formigamento nos dedos.',
+  'Ulnar nerve': 'Passa atrás do epicôndilo medial: é o que dá choque ao bater o cotovelo.',
+  'Radial nerve': 'Contorna o úmero por trás e inerva os extensores do braço, antebraço e mão.',
+  'Vagus nerve (X)': 'Décimo nervo craniano. Desce do bulbo ao abdome e regula batimento cardíaco, respiração e digestão.',
+  'Facial nerve (VII)': 'Sétimo nervo craniano; comanda os músculos da expressão facial.',
+  'Optic nerve (II)': 'Leva a informação visual da retina ao encéfalo; no quiasma, metade das fibras cruza para o outro lado.',
+  'Trigeminal nerve (V)': 'O maior nervo craniano: leva a sensibilidade do rosto e comanda a mastigação.',
+  'Tibial nerve': 'Ramo do ciático que inerva a panturrilha e a planta do pé.',
+  'Common fibular nerve': 'Contorna a cabeça da fíbula, onde é vulnerável, e inerva a frente da perna e o dorso do pé.',
+  'Cornea': 'Janela transparente na frente do olho, responsável por cerca de dois terços do foco da luz.',
+  'Lens': 'Lente flexível que muda de forma para focar perto e longe; com a idade endurece (presbiopia) ou fica opaca (catarata).',
+  'Iris': 'Diafragma colorido que regula o tamanho da pupila conforme a luz.',
+  'Retina': 'Camada sensível à luz, com cerca de 120 milhões de bastonetes e 6 milhões de cones.',
+  'Cochlea': 'Espiral de duas voltas e meia na orelha interna que transforma vibrações sonoras em impulsos nervosos.',
+  'Tympanic membrane': 'O tímpano: vibra com o som e transmite a vibração aos ossículos da orelha média.',
+  'Diaphragm': 'Lâmina muscular em cúpula que separa tórax e abdome. Ao contrair, desce e faz o ar entrar nos pulmões.',
+  'Latissimus dorsi muscle': 'O músculo mais largo das costas; estende, aduz e roda medialmente o braço.',
+  'Gluteus maximus muscle': 'O maior músculo do corpo; estende o quadril ao subir escadas e levantar-se.',
+  'Sartorius muscle': 'O músculo mais longo do corpo, cruzando a coxa em diagonal do quadril ao joelho.',
+  'Soleus muscle': 'Com o gastrocnêmio forma o tríceps sural; essencial para ficar em pé e bombear o sangue venoso da perna.',
+  'Tibialis anterior muscle': 'Levanta a ponta do pé (dorsiflexão).',
+  'Sternocleidomastoid muscle': 'Vai do esterno e da clavícula ao processo mastoide; gira e flexiona a cabeça.',
+  'Rectus abdominis muscle': 'Par de faixas verticais do abdome, divididas por intersecções tendíneas; flexiona o tronco.',
+  'Zygomaticus major muscle': 'Puxa o canto da boca para cima e para fora: é o músculo do sorriso.',
+  'Orbicularis oris muscle': 'Esfíncter dos lábios: fecha, projeta e franze a boca.'
+};
+const PT_RULES = [
+  [/^Vertebra C|^Atlas|^Axis/, 'Uma das sete vértebras cervicais. A C1 (atlas) sustenta o crânio e a C2 (áxis) permite a rotação da cabeça.'],
+  [/^Vertebra T/, 'Uma das doze vértebras torácicas, que se articulam com as costelas.'],
+  [/^Vertebra L/, 'Uma das cinco vértebras lombares, as maiores da coluna, que suportam o peso do tronco.'],
+  [/ rib$/i, 'São doze pares de costelas: do 1º ao 7º verdadeiras (ligadas ao esterno), do 8º ao 10º falsas e o 11º e 12º flutuantes.'],
+  [/sternum|Xiphoid/i, 'Parte do esterno, osso plano no centro do tórax formado por manúbrio, corpo e processo xifoide.'],
+  [/phalanx/i, 'Falange: os dedos têm três falanges (proximal, média e distal), exceto o polegar e o hálux, que têm duas.'],
+  [/metacarpal bone/i, 'Um dos cinco ossos longos da palma da mão, numerados de I (polegar) a V.'],
+  [/metatarsal bone/i, 'Um dos cinco ossos longos do pé que, com o tarso, formam os arcos plantares.'],
+  [/^(Scaphoid|Lunate|Triquetrum|Pisiform|Trapezium|Trapezoid|Capitate|Hamate)/i, 'Um dos oito ossos do carpo (punho), dispostos em duas fileiras.'],
+  [/lobe of (right|left) lung/i, 'O pulmão direito tem três lobos e o esquerdo dois. Juntos têm cerca de 300 milhões de alvéolos e área de troca de 70 m².'],
+  [/bronch/i, 'Parte da árvore brônquica, que se ramifica cerca de 23 vezes da traqueia aos alvéolos.'],
+  [/segment of liver/i, 'Um dos oito segmentos funcionais do fígado (classificação de Couinaud); cada um tem ramos próprios da veia porta, da artéria hepática e do ducto biliar, por isso pode ser removido separadamente em cirurgias.'],
+  [/ nodes?$/i, 'Grupo de linfonodos, pequenos filtros que retêm microrganismos e células anormais da linfa. Incham durante infecções.'],
+  [/coronary|interventricular artery|Circumflex artery/i, 'Artéria coronária: irriga o próprio músculo cardíaco. Sua obstrução causa o infarto.'],
+  [/cardiac vein|Coronary sinus/i, 'Veia do coração que drena o músculo cardíaco para o seio coronário e o átrio direito.'],
+  [/leaflet|papillary/i, 'Parte das valvas do coração, que garantem que o sangue circule num só sentido.'],
+  [/pulmonary vein/i, 'Traz sangue oxigenado dos pulmões ao átrio esquerdo; é uma veia com sangue arterial.'],
+  [/common carotid/i, 'Sobe pelo pescoço e se divide em carótida interna (encéfalo) e externa (face). É onde se sente o pulso no pescoço.'],
+  [/subclavian artery/i, 'Passa sob a clavícula a caminho do membro superior.'],
+  [/renal artery/i, 'Leva aos rins cerca de 20% do débito cardíaco.'],
+  [/ gyrus$/i, 'Giro do córtex cerebral. As dobras (giros) e sulcos triplicam a área do córtex, onde ficam cerca de 16 bilhões de neurônios.'],
+  [/sulcus/i, 'Sulco do córtex cerebral, uma das dobras que separam os giros.'],
+  [/cerebell/i, 'Parte do cerebelo, que coordena movimento, equilíbrio e postura.'],
+  [/brachial plexus/i, 'Parte do plexo braquial, a rede formada pelas raízes C5 a T1 que origina os nervos do membro superior.'],
+  [/ muscle$|head of |part of .* muscle/i, 'Músculo esquelético: fibras estriadas que se contraem sob comando voluntário e movem o esqueleto por meio dos tendões.'],
+  [/region|surface|sulcus|fossa|triangle/i, 'Região da superfície do corpo, usada para descrever a localização de estruturas e sintomas.']
+];
+const sideName = s => s > 0 ? 'esquerdo' : 'direito';
+
+/* =====================================================================
+   Cores por estrutura
+   ===================================================================== */
+const ORGAN_COLORS = [
+  [/^Liver|segment of liver/, '#8e3b32'], [/Gallbladder|Bile duct/, '#5e8a4a'], [/Pancrea/, '#e6b878'], [/Stomach/, '#d98f80'], [/Oesophagus|pharynx/i, '#d58a7a'],
+  [/Duodenum|Jejunum/, '#e3a08a'], [/colon|appendix|taenia/i, '#c98a6a'], [/Tongue|Gingiva|palate|Uvula/i, '#d77a7c'], [/gland|duct/i, '#e0b48c'],
+  [/Kidney/, '#9c4a3a'], [/Renal pelvis|Ureter/, '#d8b860'], [/bladder|Urethra/, '#d9be6a'],
+  [/lung/, '#e7a1ab'], [/Trachea|bronch|Epiglottis|Larynx/i, '#efc4c9'], [/Spleen/, '#7b3a5a'], [/thymus/i, '#c7a8b5'],
+  [/Thyroid|parathyroid/i, '#a67fe0'], [/Suprarenal/, '#c79a52'], [/Pineal|hypophysis/i, '#b79be6'],
+  [/ventricle|aqueduct/i, '#7fb6d8'], [/Corpus callosum|commissure|fornix/i, '#f1e3d3'], [/Thalamus|Hypothalamus/, '#d9c38f'], [/Caudate|Putamen|pallidus/i, '#c99a7d'],
+  [/Hippocamp|Amygdal/, '#e1a3b8'], [/gyrus|lobule|pole|sulcus|Insula|cortex|Cune|Precune|Lingual/i, '#e7b0a6'], [/cerebell|vermis|Flocculus|Tonsil of cerebellum/i, '#d99f96'],
+  [/Pons|Midbrain|Medulla|peduncle|Pyramid/, '#e8c070'],
+  [/Sclera|Vitreous|segment of eyeball/i, '#eeeae2'], [/Iris/, '#4c7a8a'], [/Cornea|Lens|chamber/i, '#bfe0ee'], [/Retina/, '#e48a5a'],
+  [/Nail/, '#f2d3c9'], [/Hairs of eyebrow|Eyelash/i, '#3a2a22']
+];
+function colorFor(sys, n) {
+  for (const [re, c] of ORGAN_COLORS) if (re.test(n) && (sys !== 'muscle' && sys !== 'skeleton' && sys !== 'artery' && sys !== 'vein')) return c;
+  if (sys === 'artery' && /pulmonary/i.test(n)) return '#4a74d8';
+  if (sys === 'vein' && /pulmonary/i.test(n)) return '#d84a50';
+  if (sys === 'skeleton' && /tooth|Incisor|Canine|molar/i.test(n)) return '#f4efe3';
+  if (sys === 'skeleton' && /cartilage/i.test(n)) return '#a9cfd2';
+  return SYS[sys].color;
+}
+function jitter(hex, id, amt) { const c = new THREE.Color(hex); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0; const f = 1 + ((h % 1000) / 1000) * amt; c.multiplyScalar(f); return c; }
+
+/* =====================================================================
+   Materiais
+   ===================================================================== */
+const U = { time: { value: 0 }, flowOn: { value: 1 }, heart: { value: new THREE.Vector3(0.02, 1.27, 0.04) }, bol: { value: new THREE.Vector4(0, -9, 0, 0) }, bolW: { value: 0.025 } };
+function flowMaterial(color, dir) {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.38, metalness: 0.06 });
+  m.userData.flowDir = dir;
+  m.onBeforeCompile = function (sh) {
+    sh.uniforms.uTime = U.time; sh.uniforms.uFlowOn = U.flowOn; sh.uniforms.uHeart = U.heart; sh.uniforms.uDir = { value: m.userData.flowDir };
+    sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'uniform float uTime;\nuniform float uFlowOn;\nuniform float uDir;\nuniform vec3 uHeart;\nvarying vec3 vWp;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\nfloat ph = fract(distance(vWp, uHeart) * 7.0 - uTime * uDir * 1.2);\nfloat pulse = smoothstep(0.0, 0.18, ph) * (1.0 - smoothstep(0.18, 0.55, ph));\ntotalEmissiveRadiance += diffuseColor.rgb * pulse * 0.55 * uFlowOn;');
+  };
+  return m;
+}
+function periMaterial(color) {
+  const m = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.03 });
+  m.onBeforeCompile = function (sh) {
+    sh.uniforms.uBol = U.bol; sh.uniforms.uBolW = U.bolW;
+    sh.vertexShader = 'uniform vec4 uBol;\nuniform float uBolW;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\nvec3 wp = (modelMatrix * vec4(transformed, 1.0)).xyz;\nfloat dd = distance(wp, uBol.xyz);\nfloat sc = length(modelMatrix[0].xyz);\ntransformed += normal * (uBol.w / max(sc, 1e-6)) * exp(-dd * dd / (uBolW * uBolW));');
+  };
+  return m;
+}
+function skinMaterial(color) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(color) }, uOp: { value: SYS.skin.op }, uHi: { value: 0 } },
+    vertexShader: '#include <common>\n#include <clipping_planes_pars_vertex>\nvarying vec3 vN;\nvarying vec3 vV;\nvoid main(){\n vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);\n vN = normalize(normalMatrix * normal);\n vV = normalize(-mvPosition.xyz);\n gl_Position = projectionMatrix * mvPosition;\n#include <clipping_planes_vertex>\n}',
+    fragmentShader: '#include <common>\n#include <clipping_planes_pars_fragment>\nuniform vec3 uColor;\nuniform float uOp;\nuniform float uHi;\nvarying vec3 vN;\nvarying vec3 vV;\nvoid main(){\n#include <clipping_planes_fragment>\n vec3 n = normalize(vN);\n if (!gl_FrontFacing) n = -n;\n float f = pow(1.0 - abs(dot(n, normalize(vV))), 2.4);\n vec3 xray = mix(uColor * 0.18, uColor * 1.15, f);\n float diff = max(dot(n, normalize(vec3(0.35, 0.55, 0.75))), 0.0);\n vec3 solid = uColor * (0.34 + 0.7 * diff) + uColor * f * 0.2;\n float s = smoothstep(0.7, 1.0, uOp);\n vec3 c = mix(xray, solid, s) + uHi * vec3(0.35, 0.2, 0.12);\n float a = mix((0.04 + 0.96 * f) * uOp, 1.0, s);\n gl_FragColor = vec4(c, a);\n}',
+    transparent: true, depthWrite: false, clipping: true, side: THREE.FrontSide
+  });
+}
+const PERI = /^(Oesophagus|Stomach|Duodenum|Jejunum|Ascending colon|Transverse colon|Descending colon|Sigmoid colon|Vermiform appendix|Oropharynx|Laryngopharynx|Ureter|Urethra|Renal pelvis)$/;
+
+/* =====================================================================
+   Cena
+   ===================================================================== */
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(stage.clientWidth, stage.clientHeight);
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, stage.clientWidth / stage.clientHeight, 0.003, 30);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 0.03; controls.maxDistance = 5.5;
+controls.rotateSpeed = 0.7; controls.zoomSpeed = 0.9; controls.screenSpacePanning = true;
+scene.add(new THREE.HemisphereLight(0xdde7f2, 0x2a2018, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(1.6, 2.6, 2.2); scene.add(key);
+const rim = new THREE.DirectionalLight(0x8fb4ff, 0.4); rim.position.set(-2, 1.2, -2.4); scene.add(rim);
+const camLight = new THREE.DirectionalLight(0xfff2e6, 0.35); camera.add(camLight); camLight.position.set(0, 0, 1); scene.add(camera);
+const floor = new THREE.PolarGridHelper(0.85, 16, 6, 96, 0x2c3d4f, 0x1a2633); floor.material.transparent = true; floor.material.opacity = 0.55; scene.add(floor);
+const glowDisk = new THREE.Mesh(new THREE.CircleGeometry(0.9, 64), new THREE.MeshBasicMaterial({ color: 0x1b3348, transparent: true, opacity: 0.25, depthWrite: false }));
+glowDisk.rotation.x = -Math.PI / 2; glowDisk.position.y = -0.002; scene.add(glowDisk);
+const world = new THREE.Group(); scene.add(world);
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const toV = p => p.isVector3 ? p.clone() : V(p[0], p[1], p[2]);
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const fmt = (n, d = 1) => n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const $ = id => document.getElementById(id);
+
+/* =====================================================================
+   Dados: índice, nomes, estruturas
+   ===================================================================== */
+let IDX = null, NAMES = {}, PATHS = {}, DESC_EN = null;
+const DB = {}, BYKEY = {}, ALL = [], LOADED = {}, LOADING = {};
+const ptName = n => (NAMES[n] && NAMES[n][0] && !/\?{2,}/.test(NAMES[n][0]) && NAMES[n][0]) || n;
+const laName = n => (NAMES[n] && NAMES[n][1] && !/\?{2,}/.test(NAMES[n][1]) && NAMES[n][1]) || '';
+function cleanName(s) { return s.replace(/^\((.*)\)$/, '$1').replace(/^\[(.*)\]$/, '$1').replace(/\*+/g, '').replace(/\s*\(\/\/.*$/, '').trim(); }
+function initIndex(j) {
+  IDX = j; NAMES = j.names; PATHS = j.paths;
+  const sysOfLayer = l => l === 'hair' ? 'skin' : l;
+  for (const p of j.parts) {
+    const sys = sysOfLayer(p.l), id = sys + ':' + p.n;
+    let d = DB[id];
+    if (!d) d = DB[id] = { id, sys, en: p.n, name: cleanName(ptName(p.n)), latin: cleanName(laName(p.n)), group: p.g.length ? cleanName(ptName(p.g[p.g.length - 1])) : SYS[sys].name, meshes: [], sides: new Set(), keys: [], c: p.c };
+    if (p.s) d.sides.add(p.s);
+    d.keys.push(p.k); BYKEY[p.k] = BYKEY[THREE.PropertyBinding.sanitizeNodeName(p.k)] = { id, side: p.s, part: p };
+  }
+  // estruturas que encobrem outras ficam ocultas de início
+  for (const id in DB) if (/Falx cerebri|Tentorium cerebelli|Mucosa of nasal cavity|Free taenia|Mesocolic taenia|Omental taenia/.test(DB[id].en)) state.hidden.add(id);
+}
+function descFor(d) {
+  if (PT[d.en]) return { t: PT[d.en], pt: true };
+  if (DESC_EN && DESC_EN[d.en]) return { t: DESC_EN[d.en], pt: false };
+  for (const [re, t] of PT_RULES) if (re.test(d.en)) return { t, pt: true, generic: true };
+  return { t: 'Parte do grupo ' + d.group.toLowerCase() + ' (' + SYS[d.sys].name.toLowerCase() + ').', pt: true, generic: true };
+}
+
+/* =====================================================================
+   Carregamento dos modelos
+   ===================================================================== */
+const gltfLoader = new THREE.GLTFLoader(); gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+const heartRoot = new THREE.Group(), lungRoot = new THREE.Group(); world.add(heartRoot, lungRoot);
+function loadFile(f, onProgress) {
+  if (LOADED[f]) return Promise.resolve();
+  if (LOADING[f]) return LOADING[f];
+  return LOADING[f] = new Promise((resolve, reject) => {
+    fetchModel(f, onProgress).then(buf => gltfLoader.parse(buf, '', g => { attach(f, g.scene); LOADED[f] = true; resolve(); }, err => { delete LOADING[f]; reject(err); })).catch(err => { delete LOADING[f]; reject(err); });
+  });
+}
+// Baixa o .glb; onde o servidor não entrega .glb, usa a cópia em base64 dentro de um .json
+async function readWithProgress(res, onProgress) {
+  if (!res.body || !onProgress) return new Uint8Array(await res.arrayBuffer());
+  const total = +res.headers.get('content-length') || 0, reader = res.body.getReader(), chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; onProgress({ loaded: got, total }); }
+  const out = new Uint8Array(got); let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; } return out;
+}
+async function fetchModel(f, onProgress) {
+  let res = await fetch(BASE + f + '.glb').catch(() => null);
+  if (res && res.ok && !/text\/html/.test(res.headers.get('content-type') || '')) return (await readWithProgress(res, onProgress)).buffer;
+  res = await fetch(BASE + f + '.glb.json');
+  if (!res.ok) throw new Error('modelo ' + f + ' indisponível (' + res.status + ')');
+  const bytes = await readWithProgress(res, onProgress ? e => onProgress({ loaded: e.loaded * 0.75 }) : null);
+  const b64 = JSON.parse(new TextDecoder().decode(bytes)).glb, bin = atob(b64), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+function attach(f, root) {
+  const sys = FILE_SYS[f];
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const m of meshes) {
+    const info = BYKEY[m.name] || BYKEY[m.parent && m.parent.name];
+    if (!info) { m.visible = false; (window.__unmatched = window.__unmatched || []).push(m.name); continue; }
+    const d = DB[info.id];
+    const col = colorFor(sys, d.en);
+    let mat;
+    if (sys === 'skin' && !/Nail|Hairs|Eyelash/.test(d.en)) mat = skinMaterial(col);
+    else if (PERI.test(d.en)) mat = periMaterial(col);
+    else if (sys === 'artery' || sys === 'vein') mat = flowMaterial(jitter(col, d.id, 0.12), sys === 'vein' ? -1 : 1);
+    else mat = new THREE.MeshStandardMaterial({ color: (sys === 'muscle' || sys === 'nervous') ? jitter(col, d.id, 0.22) : new THREE.Color(col), roughness: sys === 'skeleton' ? 0.72 : 0.5, metalness: 0.04 });
+    mat.side = sys === 'skin' && mat.isShaderMaterial ? THREE.FrontSide : THREE.DoubleSide;
+    m.material = mat;
+    m.userData = { id: d.id, side: info.side, label: '', opMul: 1, skin: !!mat.isShaderMaterial, baseEm: new THREE.Color(0) };
+    if (!mat.isShaderMaterial) mat.emissive.set(0);
+    if (mat.isShaderMaterial) m.renderOrder = 10;
+    d.meshes.push(m); ALL.push(m);
+  }
+  root.updateMatrixWorld(true);
+  if (sys === 'heart') {
+    const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3());
+    heartRoot.position.copy(c); root.position.sub(c); heartRoot.add(root); U.heart.value.copy(c);
+  } else if (sys === 'resp') {
+    const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3());
+    lungRoot.position.copy(c); root.position.sub(c); lungRoot.add(root);
+  } else world.add(root);
+  world.updateMatrixWorld(true);
+  applyOpacity(sys);
+  addLabelGroups(meshes.filter(m => m.userData.id));
+  refreshVis();
+}
+async function ensureSys(sys, quiet) {
+  const files = SYS[sys].files.filter(f => !LOADED[f]);
+  if (!files.length) return;
+  const row = document.querySelector('.layer[data-sys="' + sys + '"]');
+  if (row) row.classList.add('loading');
+  try { await Promise.all(files.map(f => loadFile(f))); }
+  catch (e) { console.error(e); toast('Não foi possível baixar a camada ' + SYS[sys].name + '. Verifique a conexão.'); }
+  if (row) row.classList.remove('loading');
+}
+function toast(t) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => el.hidden = true, 4000); }
+
+/* =====================================================================
+   Estado, visibilidade, opacidade, destaque
+   ===================================================================== */
+const state = { labels: true, tourHi: null, hidden: new Set(), iso: null, sel: null, selSide: 0, selLabel: '', hover: null, flow: true, beat: true, spin: false, cut: 'none', cutPos: 0.5 };
+let pickables = [], skinPick = [];
+function isOn(id) { const d = DB[id]; return !!d && SYS[d.sys].on && !state.hidden.has(id) && (!state.iso || state.iso.has(id)); }
+function refreshVis() {
+  pickables = []; skinPick = [];
+  for (const id in DB) { const on = isOn(id); DB[id].meshes.forEach(m => { m.visible = on; if (on) (m.userData.skin ? skinPick : pickables).push(m); }); }
+  renderLayers(); renderTreeState();
+  const sh = $('showHidden'); sh.hidden = state.hidden.size === 0; sh.textContent = 'Reexibir ocultas (' + state.hidden.size + ')';
+  $('isoBanner').hidden = !state.iso || !!tour.def;
+  if (state.iso && !tour.def) $('isoTxt').textContent = 'Isolado: ' + [...state.iso].slice(0, 3).map(i => DB[i].name).join(', ') + (state.iso.size > 3 ? '…' : '');
+}
+function applyOpacity(sys) {
+  const op = SYS[sys].op;
+  for (const id in DB) {
+    const d = DB[id]; if (d.sys !== sys) continue;
+    d.meshes.forEach(m => {
+      if (m.userData.skin) { m.material.uniforms.uOp.value = op; return; }
+      const o = clamp(op * (sys === 'skin' ? 2.4 : 1), 0, 1), tr = o < 0.999;
+      if (m.material.transparent !== tr) { m.material.transparent = tr; m.material.needsUpdate = true; }
+      m.material.opacity = o; m.material.depthWrite = o > 0.5;
+    });
+  }
+}
+const HI_SEL = new THREE.Color(0xff7a45).multiplyScalar(0.7), HI_HOV = new THREE.Color(0x6a4a30), HI_TOUR = new THREE.Color(0x3a2c10);
+function paint() {
+  for (const id in DB) {
+    const d = DB[id], sel = state.sel === id, hov = state.hover && state.hover.id === id, th = state.tourHi && state.tourHi.has(id);
+    d.meshes.forEach(m => {
+      const sm = !state.selSide || !m.userData.side || m.userData.side === state.selSide;
+      if (m.userData.skin) { m.material.uniforms.uHi.value = sel && sm ? 0.6 : hov ? 0.3 : 0; return; }
+      if (sel && sm) m.material.emissive.copy(HI_SEL);
+      else if (th) m.material.emissive.copy(HI_TOUR);
+      else if (hov && (!state.hover.side || !m.userData.side || m.userData.side === state.hover.side)) m.material.emissive.copy(HI_HOV);
+      else m.material.emissive.set(0);
+    });
+  }
+}
+
+/* =====================================================================
+   Câmera: voo estilo globo
+   ===================================================================== */
+let fly = null;
+const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function boxOf(meshes) { const b = new THREE.Box3(); meshes.forEach(m => { if (!m.geometry.boundingBox) m.geometry.computeBoundingBox(); m.updateWorldMatrix(true, false); b.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); }); return b; }
+function flyTo(center, radius, dirOverride, dur) {
+  const fromT = controls.target.clone(), fromP = camera.position.clone();
+  const fromDir = fromP.clone().sub(fromT), fromDist = fromDir.length(); fromDir.normalize();
+  const toDir = (dirOverride || fromDir).clone().normalize();
+  const fit = radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * (camera.aspect < 1 ? 1.5 : 1.08);
+  const toDist = clamp(fit, controls.minDistance * 1.5, controls.maxDistance);
+  const travel = fromT.distanceTo(center);
+  fly = { t0: performance.now(), dur: dur || clamp(900 + travel * 900, 900, 2200), fromT, toT: center.clone(), fromDir, toDir, fromDist, toDist, bump: Math.max(0, travel * 0.9 - Math.max(fromDist, toDist) * 0.3) };
+}
+function flyToMeshes(meshes, dir) { if (!meshes.length) return; const b = boxOf(meshes); flyTo(b.getCenter(new THREE.Vector3()), Math.max(0.02, b.getSize(new THREE.Vector3()).length() / 2), dir); }
+function stepFly(now) {
+  if (!fly) return;
+  const t = clamp((now - fly.t0) / fly.dur, 0, 1), e = ease(t);
+  controls.target.lerpVectors(fly.fromT, fly.toT, e);
+  const dir = fly.fromDir.clone().lerp(fly.toDir, e); if (dir.lengthSq() < 1e-6) dir.copy(fly.toDir); dir.normalize();
+  camera.position.copy(controls.target).addScaledVector(dir, fly.fromDist + (fly.toDist - fly.fromDist) * e + Math.sin(Math.PI * t) * fly.bump);
+  if (t >= 1) fly = null;
+}
+const VIEWS = { front: V(0, 0.1, 1), back: V(0, 0.1, -1), side: V(1, 0.1, 0), top: V(0, 1, 0.02) };
+function home() { flyTo(V(0, 0.87, 0), 0.8, V(0.32, 0.12, 1), 1400); }
+
+/* =====================================================================
+   Seleção e ficha
+   ===================================================================== */
+async function select(id, side, label, opts) {
+  opts = opts || {};
+  const d = DB[id]; if (!d) return;
+  state.sel = id; state.selSide = side || 0; state.selLabel = label || '';
+  if (!SYS[d.sys].on) { SYS[d.sys].on = true; ensureSys(d.sys); }
+  state.hidden.delete(id);
+  refreshVis(); paint();
+  $('info').hidden = false;
+  const b = $('iBadge'); b.style.setProperty('--c', SYS[d.sys].color); b.querySelector('span').textContent = SYS[d.sys].name;
+  $('iName').textContent = label ? label : d.name;
+  $('iLatin').textContent = label ? d.name : d.latin;
+  const where = [d.group];
+  if (side) where.push('lado ' + sideName(side)); else if (d.sides.size === 2) where.push('bilateral');
+  $('iWhere').textContent = where.join(' · ');
+  const fill = () => {
+    const ds = descFor(d);
+    $('iDesc').textContent = ds.t;
+    $('iEn').hidden = ds.pt; $('iEn').textContent = 'Resumo original em inglês (Wikipedia, via Z-Anatomy) · termo: ' + d.en;
+  };
+  fill();
+  if (!DESC_EN) fetch(BASE + 'desc-en.json').then(r => r.json()).then(j => { DESC_EN = j; if (state.sel === id) fill(); }).catch(() => {});
+  const fig = /Nail plate/.test(d.en) ? 'unhas' : d.sys === 'skin' && !/Hairs|Eyelash/.test(d.en) ? 'pele' : /^Kidney|Renal pelvis/.test(d.en) ? 'rim' : /Jejunum|Duodenum/.test(d.en) ? 'delgado' : null;
+  $('iFig').innerHTML = fig ? figureHTML(fig) : '';
+  $('iIso').textContent = state.iso && state.iso.has(id) && state.iso.size === 1 ? 'Sair do isolamento' : 'Isolar';
+  if (opts.fly) flyToMeshes(selMeshes());
+  document.querySelectorAll('.item.on').forEach(e => e.classList.remove('on'));
+  const it = document.querySelector('.item[data-id="' + CSS.escape(id) + '"]'); if (it) it.classList.add('on');
+  if (window.innerWidth <= 860 && opts.fromPanel) $('panel').classList.remove('open');
+}
+function selMeshes() { const d = DB[state.sel]; return d ? d.meshes.filter(m => !state.selSide || !m.userData.side || m.userData.side === state.selSide) : []; }
+function deselect() { state.sel = null; state.selSide = 0; $('info').hidden = true; paint(); document.querySelectorAll('.item.on').forEach(e => e.classList.remove('on')); }
+
+/* =====================================================================
+   Picking
+   ===================================================================== */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pickAt(cx, cy) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const planes = renderer.clippingPlanes, ok = p => !planes.length || planes.every(pl => pl.distanceToPoint(p) >= 0);
+  for (const h of ray.intersectObjects(pickables, false)) { const mt = h.object.material; if (mt.transparent && mt.opacity < 0.12) continue; if (!ok(h.point)) continue; return { id: h.object.userData.id, side: h.object.userData.side, point: h.point }; }
+  for (const h of ray.intersectObjects(skinPick, false)) { if (!ok(h.point)) continue; return { id: h.object.userData.id, side: h.object.userData.side, point: h.point }; }
+  return null;
+}
+const tip = $('tip'); let hoverQueued = null, down = null, lastTap = 0, lastHover = 0;
+renderer.domElement.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') hoverQueued = { x: e.clientX, y: e.clientY }; });
+renderer.domElement.addEventListener('pointerleave', () => { hoverQueued = null; state.hover = null; tip.hidden = true; paint(); });
+function doHover(now) {
+  if (!hoverQueued || fly || down || now - lastHover < 70) return; lastHover = now;
+  const h = pickAt(hoverQueued.x, hoverQueued.y), prev = state.hover;
+  if (!h) { if (prev) { state.hover = null; paint(); } tip.hidden = true; renderer.domElement.style.cursor = ''; }
+  else {
+    if (!prev || prev.id !== h.id || prev.side !== h.side) { state.hover = h; paint(); }
+    const d = DB[h.id]; tip.textContent = d.name + (h.side ? ' (' + (h.side > 0 ? 'E' : 'D') + ')' : '');
+    const em = document.createElement('em'); em.textContent = d.latin; tip.append(em);
+    tip.style.left = hoverQueued.x + 'px'; tip.style.top = hoverQueued.y + 'px'; tip.hidden = false; renderer.domElement.style.cursor = 'pointer';
+  }
+  hoverQueued = null;
+}
+renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; tip.hidden = true; if (fly) fly = null; stopSpinOnUse(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down) return; const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null; if (moved > 6) return;
+  const now = performance.now(), dbl = now - lastTap < 320; lastTap = now;
+  const h = pickAt(e.clientX, e.clientY);
+  if (dbl) { if (h) { select(h.id, h.side); const b = boxOf(selMeshes()); flyTo(h.point.clone().lerp(b.getCenter(new THREE.Vector3()), 0.5), clamp(b.getSize(new THREE.Vector3()).length() / 2, 0.03, 0.25)); } return; }
+  if (h) select(h.id, h.side); else deselect();
+});
+function stopSpinOnUse() { if (state.spin) { state.spin = false; controls.autoRotate = false; $('tgSpin').setAttribute('aria-pressed', 'false'); } }
+
+/* =====================================================================
+   Painel: camadas, árvore, busca
+   ===================================================================== */
+function sysCount(sys) { let n = 0; for (const id in DB) if (DB[id].sys === sys) n++; return n; }
+function renderLayers() {
+  const box = $('layers');
+  if (!box.childElementCount && IDX) {
+    for (const k in SYS) {
+      const s = SYS[k], row = document.createElement('div');
+      row.className = 'layer'; row.dataset.sys = k; row.style.setProperty('--c', s.color);
+      const mb = s.files.reduce((a, f) => a + (FILE_MB[f] || 0), 0);
+      row.innerHTML = '<button class="eye" aria-label="Mostrar ou ocultar ' + s.name + '"><i></i></button><button class="lname" title="Mostrar só esta camada">' + s.name + ' <small>' + sysCount(k) + '</small></button><input type="range" min="0" max="100" aria-label="Opacidade de ' + s.name + '" id="op-' + k + '">';
+      row.title = 'Arquivo de ' + fmt(mb) + ' MB';
+      const rg = row.querySelector('input'); rg.value = Math.round(s.op * 100); rg.style.setProperty('--p', rg.value + '%');
+      row.querySelector('.eye').onclick = () => { s.on = !s.on; if (s.on) ensureSys(k); refreshVis(); };
+      row.querySelector('.lname').onclick = () => { const only = Object.keys(SYS).every(j => j === k ? SYS[j].on : !SYS[j].on); for (const j in SYS) { SYS[j].on = only ? true : j === k; if (SYS[j].on) ensureSys(j); } refreshVis(); };
+      rg.oninput = () => { s.op = rg.value / 100; rg.style.setProperty('--p', rg.value + '%'); applyOpacity(k); };
+      box.appendChild(row);
+    }
+  }
+  box.querySelectorAll('.layer').forEach(r => r.classList.toggle('off', !SYS[r.dataset.sys].on));
+}
+let treeBuilt = false;
+function itemEl(id) {
+  const d = DB[id], it = document.createElement('div'); it.className = 'item'; it.dataset.id = id;
+  const nb = document.createElement('button'); nb.className = 'iname'; nb.textContent = d.name; nb.title = d.latin || d.en;
+  nb.onclick = async () => { await ensureSys(d.sys); select(id, 0, '', { fly: true, fromPanel: true }); };
+  it.appendChild(nb);
+  if (d.sides.size === 2) [[1, 'E'], [-1, 'D']].forEach(([s, l]) => { const b = document.createElement('button'); b.className = 'side'; b.textContent = l; b.title = 'Lado ' + sideName(s); b.onclick = async () => { await ensureSys(d.sys); select(id, s, '', { fly: true, fromPanel: true }); }; it.appendChild(b); });
+  if (!isOn(id)) it.classList.add('hid');
+  return it;
+}
+function buildTree() {
+  if (treeBuilt || !IDX) return; treeBuilt = true;
+  const tree = $('tree');
+  for (const k in SYS) {
+    const ids = Object.keys(DB).filter(id => DB[id].sys === k);
+    if (!ids.length) continue;
+    const det = document.createElement('details'); det.dataset.sys = k;
+    det.innerHTML = '<summary style="--c:' + SYS[k].color + '"><i></i>' + SYS[k].name + '<small>' + ids.length + '</small></summary>';
+    const groups = {}; ids.forEach(id => (groups[DB[id].group] = groups[DB[id].group] || []).push(id));
+    const wrap = document.createElement('div'); wrap.className = 'groups';
+    Object.keys(groups).sort((a, b) => a.localeCompare(b, 'pt')).forEach(g => {
+      const gd = document.createElement('details'); gd.className = 'grp';
+      gd.innerHTML = '<summary>' + g.replace(/[<>&]/g, '') + '<small>' + groups[g].length + '</small></summary>';
+      gd.addEventListener('toggle', () => { if (gd.open && !gd._filled) { gd._filled = true; const box = document.createElement('div'); box.className = 'items'; groups[g].sort((a, b) => DB[a].name.localeCompare(DB[b].name, 'pt')).forEach(id => box.appendChild(itemEl(id))); gd.appendChild(box); } });
+      wrap.appendChild(gd);
+    });
+    det.appendChild(wrap); tree.appendChild(det);
+  }
+}
+function renderTreeState() { document.querySelectorAll('#tree .item').forEach(it => it.classList.toggle('hid', !isOn(it.dataset.id))); }
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const q = $('q'), results = $('results'); let resSel = 0, resList = [];
+function search() {
+  const t = norm(q.value.trim()); if (!t || !IDX) { results.hidden = true; return; }
+  const scored = [];
+  for (const id in DB) { const d = DB[id], a = norm(d.name), b = norm(d.latin), c = norm(d.en); const i = a.indexOf(t); if (i >= 0 || b.includes(t) || c.includes(t)) scored.push([id, (i === 0 ? 0 : i > 0 ? 1 : 2) + a.length / 200]); }
+  resList = scored.sort((x, y) => x[1] - y[1]).slice(0, 12).map(x => x[0]);
+  results.innerHTML = '';
+  if (!resList.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Nada encontrado para “' + q.value + '”.'; results.appendChild(e); results.hidden = false; return; }
+  resSel = 0;
+  resList.forEach((id, i) => {
+    const d = DB[id], b = document.createElement('button'); if (i === 0) b.className = 'on';
+    const dot = document.createElement('i'); dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex:none;background:' + SYS[d.sys].color;
+    const nm = document.createElement('span'); nm.textContent = d.name;
+    const lt = document.createElement('em'); lt.textContent = d.latin;
+    const sm = document.createElement('small'); sm.textContent = SYS[d.sys].name;
+    b.append(dot, nm, lt, sm); b.onclick = () => choose(id); results.appendChild(b);
+  });
+  results.hidden = false;
+}
+async function choose(id) { results.hidden = true; q.value = ''; q.blur(); await ensureSys(DB[id].sys); select(id, 0, '', { fly: true, fromPanel: true }); }
+q.addEventListener('input', search);
+q.addEventListener('keydown', e => {
+  if (results.hidden) return; const bs = results.querySelectorAll('button');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); resSel = (resSel + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length; bs.forEach((b, i) => b.classList.toggle('on', i === resSel)); }
+  else if (e.key === 'Enter' && resList[resSel]) { e.preventDefault(); choose(resList[resSel]); }
+  else if (e.key === 'Escape') results.hidden = true;
+});
+document.addEventListener('click', e => { if (!e.target.closest('.search')) results.hidden = true; });
+
+/* =====================================================================
+   Controles diversos
+   ===================================================================== */
+$('allOn').onclick = () => { for (const k in SYS) { SYS[k].on = true; ensureSys(k); } state.iso = null; refreshVis(); };
+$('showHidden').onclick = () => { state.hidden.clear(); refreshVis(); };
+$('iClose').onclick = deselect;
+$('iFocus').onclick = () => state.sel && flyToMeshes(selMeshes());
+$('iHide').onclick = () => { if (!state.sel) return; state.hidden.add(state.sel); deselect(); refreshVis(); };
+$('iIso').onclick = () => {
+  if (!state.sel) return;
+  if (state.iso && state.iso.has(state.sel) && state.iso.size === 1) state.iso = null;
+  else { state.iso = new Set([state.sel]); flyToMeshes(selMeshes()); }
+  $('iIso').textContent = state.iso ? 'Sair do isolamento' : 'Isolar'; refreshVis();
+};
+$('isoExit').onclick = () => { state.iso = null; $('iIso').textContent = 'Isolar'; refreshVis(); };
+$('home').onclick = home;
+const distNow = () => camera.position.distanceTo(controls.target) * Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) / (camera.aspect < 1 ? 1.5 : 1.08);
+$('compass').onclick = () => flyTo(controls.target.clone(), distNow(), VIEWS.front, 900);
+$('zIn').onclick = () => flyTo(controls.target.clone(), distNow() * 0.7, null, 500);
+$('zOut').onclick = () => flyTo(controls.target.clone(), distNow() * 1.4, null, 500);
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { const v = b.dataset.view; let dir = VIEWS[v]; if (v === 'side') dir = V(camera.position.x - controls.target.x >= 0 ? -1 : 1, 0.1, 0); flyTo(controls.target.clone(), distNow(), dir, 1000); });
+const tg = (id, k, fn) => { const b = $(id); b.onclick = () => { state[k] = !state[k]; b.setAttribute('aria-pressed', state[k]); fn && fn(); }; };
+tg('tgLabels', 'labels', () => updateLabels(performance.now(), true));
+tg('tgFlow', 'flow', () => U.flowOn.value = state.flow ? 1 : 0);
+tg('tgBeat', 'beat');
+tg('tgSpin', 'spin', () => { controls.autoRotate = state.spin; controls.autoRotateSpeed = 0.8; });
+$('menuBtn').onclick = () => $('panel').classList.add('open');
+$('closePanel').onclick = () => $('panel').classList.remove('open');
+const cutPlane = new THREE.Plane();
+const CUT = { sag: { n: V(-1, 0, 0), min: -0.42, max: 0.42 }, cor: { n: V(0, 0, -1), min: -0.16, max: 0.2 }, tra: { n: V(0, -1, 0), min: 0, max: 1.75 } };
+function applyCut() { if (state.cut === 'none') { renderer.clippingPlanes = []; $('cutRow').hidden = true; return; } const c = CUT[state.cut]; cutPlane.normal.copy(c.n); cutPlane.constant = c.min + (c.max - c.min) * state.cutPos; renderer.clippingPlanes = [cutPlane]; $('cutRow').hidden = false; }
+$('cutSeg').querySelectorAll('button').forEach(b => b.onclick = () => { $('cutSeg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); state.cut = b.dataset.cut; state.cutPos = state.cut === 'tra' ? 0.72 : 0.5; $('cutPos').value = state.cutPos * 1000; applyCut(); });
+$('cutPos').oninput = e => { state.cutPos = e.target.value / 1000; applyCut(); };
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input')) return;
+  if (e.key === 'Escape') { if (tour.def) stopTour(); else if (state.iso) { state.iso = null; refreshVis(); } else deselect(); }
+  if (e.key === 'h' || e.key === 'H') home();
+  if (e.key === '/') { e.preventDefault(); q.focus(); }
+});
+const cOf = (n, s) => { const p = IDX.parts.find(x => x.n === n && (!s || x.s === s)); return p ? toV(p.c) : null; };
+function setupPlaces() {
+  const P = [
+    ['Corpo inteiro', () => home()],
+    ['Encéfalo', () => flyTo(V(0, 1.62, -0.01), 0.11, V(0.7, 0.35, 1))],
+    ['Rosto', () => flyTo(V(0, 1.56, 0.07), 0.09, V(0.25, 0.08, 1))],
+    ['Pescoço', () => flyTo(V(0, 1.47, 0.0), 0.09, V(0.6, 0.1, 1))],
+    ['Coração', () => flyTo(U.heart.value.clone(), 0.08, V(0.2, 0.1, 1))],
+    ['Tórax', () => flyTo(V(0, 1.29, 0.0), 0.2, V(0.35, 0.15, 1))],
+    ['Abdome', () => flyTo(V(0, 1.04, 0.02), 0.17, V(0.2, 0.15, 1))],
+    ['Pelve', () => flyTo(V(0, 0.88, 0), 0.15, V(0.3, 0.3, 1))],
+    ['Coluna', () => flyTo(V(0, 1.2, -0.06), 0.34, V(-0.9, 0.1, -0.6))],
+    ['Ombro', () => flyTo(cOf('Humerus', 1) ? cOf('Humerus', 1).add(V(0, 0.12, 0)) : V(0.17, 1.38, 0), 0.09, V(0.8, 0.3, 0.6))],
+    ['Mão', () => flyTo(cOf('Third metacarpal bone', 1) || V(0.28, 0.78, 0.05), 0.09, V(0.4, 0.05, 1))],
+    ['Joelho', () => flyTo(cOf('Patella', 1) || V(0.09, 0.48, 0.03), 0.09, V(0.6, 0.1, 1))],
+    ['Pé', () => flyTo(cOf('Talus', 1) ? cOf('Talus', 1).add(V(0, -0.02, 0.05)) : V(0.1, 0.04, 0.06), 0.12, V(0.8, 0.5, 0.7))]
+  ];
+  P.forEach(([n, f]) => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = n; b.onclick = () => { stopSpinOnUse(); f(); }; $('places').appendChild(b); });
+}
+
+/* =====================================================================
+   Barra de status
+   ===================================================================== */
+let VERT = [];
+function regionOf(p) {
+  const ax = Math.abs(p.x), side = ax > 0.03 ? (p.x > 0 ? ' esquerdo' : ' direito') : '';
+  if (p.y > 1.52) return 'Cabeça';
+  if (p.y > 1.43 && ax < 0.08) return 'Pescoço';
+  if (ax > 0.15 && p.y > 0.6 && p.y < 1.46) { if (p.y > 1.34 && ax < 0.22) return 'Ombro' + side; if (p.y > 1.08) return 'Braço' + side; if (p.y > 0.86) return 'Antebraço' + side; return 'Mão' + side; }
+  if (p.y < 0.84) { if (p.y > 0.54) return 'Coxa' + side; if (p.y > 0.42) return 'Joelho' + side; if (p.y > 0.09) return 'Perna' + side; return 'Pé' + side; }
+  if (p.y > 1.18) return 'Tórax'; if (p.y > 0.97) return 'Abdome'; return 'Pelve';
+}
+function levelOf(p) {
+  if (!VERT.length || Math.abs(p.x) > 0.2 || p.y > VERT[0].y + 0.03 || p.y < 0.84) return '—';
+  if (p.y < VERT[VERT.length - 1].y - 0.03) return 'nível sacral';
+  let best = VERT[0], bd = 9; VERT.forEach(v => { const d = Math.abs(v.y - p.y); if (d < bd) { bd = d; best = v; } });
+  return 'nível ' + best.label;
+}
+const cmp = { A: $('cA'), P: $('cP'), E: $('cE'), D: $('cD') }, CMPD = { A: V(0, 0, 1), P: V(0, 0, -1), E: V(1, 0, 0), D: V(-1, 0, 0) };
+let lastStatus = 0;
+function updateStatus(now) {
+  if (now - lastStatus < 120) return; lastStatus = now;
+  const t = controls.target;
+  $('sRegion').textContent = regionOf(t); $('sLevel').textContent = levelOf(t);
+  $('sCoord').textContent = 'x ' + fmt(t.x * 100) + ' · y ' + fmt(t.y * 100) + ' · z ' + fmt(t.z * 100) + ' cm';
+  $('sDist').textContent = fmt(camera.position.distanceTo(t), 2) + ' m';
+  const f = t.clone().sub(camera.position); f.y = 0; if (f.lengthSq() < 1e-8) f.set(0, 0, -1); f.normalize(); const r = V(-f.z, 0, f.x);
+  for (const k in cmp) { const d = CMPD[k]; cmp[k].setAttribute('x', 32 + 23 * d.dot(r)); cmp[k].setAttribute('y', 32 - 23 * d.dot(f)); }
+}
+(function ticks() { let h = ''; for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2, r0 = i % 6 === 0 ? 17 : 19.5; h += '<line x1="' + (32 + Math.cos(a) * r0) + '" y1="' + (32 + Math.sin(a) * r0) + '" x2="' + (32 + Math.cos(a) * 21) + '" y2="' + (32 + Math.sin(a) * 21) + '" stroke="rgba(190,212,230,.28)" stroke-width="1"/>'; } $('cmpTicks').innerHTML = h; })();
+
+/* =====================================================================
+   Diagramas (estruturas pequenas demais para o modelo 3D)
+   ===================================================================== */
+function dgLabels(items, x0, endAtText) {
+  return items.map(([t, ty, px, py]) => '<path class="ld" d="M' + px + ' ' + py + ' L' + (endAtText ? (x0 + t.length * 5.1 + 3).toFixed(0) : x0 - 4) + ' ' + (ty - 3) + '"/><circle class="lp" cx="' + px + '" cy="' + py + '" r="1.6"/><text x="' + x0 + '" y="' + ty + '">' + t + '</text>').join('');
+}
+function wave(x0, x1, y, amp, n) { let d = ''; const w = (x1 - x0) / n; for (let i = 0; i < n; i++) { const a = x0 + i * w; d += ' Q' + (a + w / 4) + ' ' + (y + amp) + ' ' + (a + w / 2) + ' ' + y + ' T' + (a + w) + ' ' + y; } return d; }
+const DIAGRAMS = {
+  pele: () => {
+    let fat = ''; for (let r = 0; r < 4; r++) for (let c = 0; c < 12; c++) fat += '<ellipse cx="' + (10 + c * 20 + (r % 2) * 10) + '" cy="' + (134 + r * 18) + '" rx="9" ry="8" fill="#f1dcae" stroke="#d9bf86" stroke-width=".8"/>';
+    let coil = 'M160 140'; for (let i = 0; i < 9; i++) { const a = i * 1.4; coil += ' L' + (160 + Math.cos(a) * (6 + i % 3 * 3)).toFixed(1) + ' ' + (152 + Math.sin(a) * (5 + i % 2 * 3)).toFixed(1); }
+    return '<svg viewBox="0 0 340 208" class="dg" role="img" aria-label="Corte da pele">' +
+      '<rect x="0" y="40" width="250" height="84" fill="#dea08a"/><rect x="0" y="118" width="250" height="90" fill="#f6e6c2"/>' + fat +
+      '<path d="M0 18 H250 V40' + wave(250, 0, 40, 8, 6) + ' Z" fill="#edc3a6"/>' +
+      '<path d="M0 18 H250 V22 H0 Z" fill="#f6dfc9"/>' +
+      '<path d="M120 120 C116 80 118 52 126 44 C134 52 136 80 132 120" fill="none" stroke="#c0393f" stroke-width="1.6"/><path d="M190 120 C186 80 188 52 196 44 C204 52 206 80 202 120" fill="none" stroke="#c0393f" stroke-width="1.6"/>' +
+      '<path d="M0 116 H250" stroke="#c0393f" stroke-width="3"/><path d="M0 124 H250" stroke="#3f6ed8" stroke-width="3"/>' +
+      '<path d="M58 40 C56 80 60 120 66 136" stroke="#b9865e" stroke-width="12" fill="none" stroke-linecap="round"/><circle cx="66" cy="140" r="8" fill="#9c6a45"/><circle cx="66" cy="143" r="3" fill="#dea08a"/>' +
+      '<path d="M66 138 C60 100 56 50 50 2" stroke="#3b2a20" stroke-width="3" fill="none"/>' +
+      '<ellipse cx="84" cy="72" rx="9" ry="6.5" fill="#f2d27a" stroke="#c9a548" stroke-width=".8"/><path d="M76 74 L64 70" stroke="#c9a548" stroke-width="1.5"/>' +
+      '<path d="M70 102 L112 46" stroke="#b9504b" stroke-width="3.2" stroke-linecap="round"/>' +
+      '<path d="' + coil + '" stroke="#5aa8d8" stroke-width="2.2" fill="none"/><path d="M160 140 C150 110 166 80 152 50 C146 36 154 26 150 18" stroke="#5aa8d8" stroke-width="1.8" fill="none"/>' +
+      '<ellipse cx="205" cy="50" rx="3.6" ry="6.5" fill="#f0cf4a" stroke="#a88a20" stroke-width=".7"/>' +
+      '<ellipse cx="215" cy="170" rx="13" ry="7.5" fill="#f5e08a" stroke="#a88a20" stroke-width=".7"/><ellipse cx="215" cy="170" rx="8.5" ry="5" fill="none" stroke="#a88a20" stroke-width=".7"/><ellipse cx="215" cy="170" rx="4" ry="2.4" fill="none" stroke="#a88a20" stroke-width=".7"/>' +
+      '<path d="M250 140 C232 140 222 120 212 100 C206 80 206 64 205 56 M226 140 C222 152 218 160 215 162" stroke="#d9b520" stroke-width="1.2" fill="none"/>' +
+      dgLabels([['Pelo', 12, 52, 8], ['Epiderme (5 camadas)', 30, 240, 30], ['Corpúsculo de Meissner (tato fino)', 48, 207, 48], ['Glândula sebácea', 66, 91, 70], ['Músculo eretor do pelo', 84, 100, 62], ['Derme', 102, 240, 92], ['Folículo piloso', 120, 63, 126], ['Glândula sudorípara', 138, 166, 148], ['Artéria e veia', 156, 238, 120], ['Corpúsculo de Pacini (pressão)', 174, 226, 168], ['Hipoderme (gordura)', 192, 240, 196]], 256) + '</svg>';
+  },
+  unhas: () => '<svg viewBox="0 0 340 200" class="dg" role="img" aria-label="Corte da ponta do dedo e da unha">' +
+    '<path d="M20 70 C80 64 170 60 250 66 C300 70 318 100 312 126 C304 154 270 162 230 160 C160 158 80 160 20 156 Z" fill="#edc3a6"/>' +
+    '<path d="M40 104 C90 98 170 98 230 104 C252 106 262 116 258 126 C252 136 236 138 220 136 C160 134 90 136 40 132 Z" fill="#efe4cf" stroke="#cdbf9f"/>' +
+    '<path d="M130 82 C180 76 240 78 282 86 L284 90 C240 84 180 82 132 88 Z" fill="#f4b8b0"/>' +
+    '<path d="M96 80 C110 78 120 80 130 84 L130 90 C120 88 108 88 96 90 Z" fill="#b34a4a"/>' +
+    '<path d="M108 74 C160 66 230 66 298 76 C304 78 304 82 298 82 C230 74 160 74 110 82 Z" fill="#f6ead9" stroke="#c9b48f"/>' +
+    '<path d="M110 74 C122 72 136 72 150 72 L150 79 C138 79 124 80 110 82 Z" fill="#fffaf2"/>' +
+    '<path d="M70 70 C90 66 106 68 122 72 C108 74 96 76 86 78 C80 76 74 74 70 70 Z" fill="#e2ad90"/>' +
+    '<path d="M282 86 C292 88 298 84 300 80" stroke="#d48b7a" stroke-width="3" fill="none"/>' +
+    '<path d="M60 150 C120 148 200 150 250 146" stroke="#e3a08a" stroke-width="10" fill="none" stroke-linecap="round" opacity=".6"/>' +
+    '<text x="150" y="122" class="dgi">falange distal</text><text x="120" y="148" class="dgi">polpa digital</text>' +
+    dgLabels([['Prega ungueal proximal', 16, 88, 72], ['Eponíquio (cutícula)', 32, 118, 72], ['Lúnula', 48, 140, 75]], 24, true) +
+    dgLabels([['Lâmina ungueal', 16, 220, 70], ['Borda livre', 32, 300, 79], ['Hiponíquio', 48, 291, 86]], 236) +
+    dgLabels([['Matriz (produz a unha)', 178, 112, 86], ['Leito ungueal', 194, 210, 84]], 24, true) + '</svg>',
+  rim: () => '<svg viewBox="0 0 340 214" class="dg" role="img" aria-label="Néfron">' +
+    '<rect x="0" y="0" width="340" height="104" fill="#3a1f22" opacity=".35"/><rect x="0" y="104" width="340" height="110" fill="#5a2a2a" opacity=".3"/>' +
+    '<text x="6" y="14" class="dgi">CÓRTEX</text><text x="6" y="118" class="dgi">MEDULA</text>' +
+    '<path d="M6 62 H40" stroke="#dc3d47" stroke-width="3"/><path d="M40 70 H8" stroke="#dc3d47" stroke-width="2" opacity=".75"/>' +
+    '<circle cx="62" cy="64" r="22" fill="none" stroke="#e9c48a" stroke-width="3"/>' +
+    [[56, 58], [66, 56], [70, 66], [60, 70], [52, 66], [62, 63]].map(([x, y]) => '<circle cx="' + x + '" cy="' + y + '" r="5" fill="none" stroke="#dc3d47" stroke-width="2"/>').join('') +
+    '<path d="M84 60 C96 40 104 80 114 56 C122 36 132 78 142 54 C148 42 152 50 152 64" stroke="#e0b878" stroke-width="5" fill="none" stroke-linecap="round"/>' +
+    '<path d="M152 64 V184 C152 200 176 200 176 184 V78" stroke="#e8cf9a" stroke-width="4" fill="none"/>' +
+    '<path d="M176 78 C186 50 196 80 206 56 C214 40 222 70 232 50 C240 40 252 44 262 48" stroke="#d6b06a" stroke-width="4.5" fill="none" stroke-linecap="round"/>' +
+    '<path d="M262 30 V206" stroke="#7fb6d8" stroke-width="7"/><path d="M262 200 l-6 -8 h12 z" fill="#7fb6d8"/>' +
+    '<text x="22" y="98" class="dga">Corpúsculo renal: filtra ~180 L/dia</text>' +
+    '<text x="88" y="30" class="dga">Túbulo proximal: reabsorve ~65%</text>' +
+    '<text x="182" y="150" class="dga">Alça de Henle:</text><text x="182" y="162" class="dga">concentra a urina</text>' +
+    '<text x="190" y="24" class="dga">Túbulo distal</text>' +
+    '<text x="272" y="96" class="dga">Ducto</text><text x="272" y="108" class="dga">coletor:</text><text x="272" y="120" class="dga">ajuste pelo</text><text x="272" y="132" class="dga">hormônio</text><text x="272" y="144" class="dga">antidiurético</text>' +
+    '<text x="272" y="196" class="dga">urina</text><text x="272" y="208" class="dga">1–2 L/dia</text>' +
+    '<text x="6" y="52" class="dgi">arteríola aferente</text></svg>',
+  delgado: () => {
+    let brush = ''; for (let i = 0; i <= 40; i++) { const t = i / 40, a = Math.PI * t; const x = 110 - Math.cos(a) * 52, y = 30 + (1 - Math.sin(a)) * 160 * (t < 0.5 ? 1 : 1); const nx = -Math.cos(a), ny = -Math.sin(a); brush += '<path d="M' + x.toFixed(1) + ' ' + y.toFixed(1) + ' l' + (nx * 5).toFixed(1) + ' ' + (ny * 5).toFixed(1) + '" stroke="#e8c7a8" stroke-width="1"/>'; }
+    return '<svg viewBox="0 0 340 214" class="dg" role="img" aria-label="Vilosidade intestinal">' +
+      '<path d="M20 200 C30 200 40 170 50 170 C56 170 58 196 58 190 C58 60 70 30 110 28 C150 30 162 60 162 190 C162 196 166 170 172 170 C182 170 190 200 200 200 Z" fill="#e7a58d" stroke="#c97c62" stroke-width="5"/>' + brush +
+      '<path d="M84 196 C84 120 90 70 104 60 C112 54 116 54 120 60" stroke="#dc3d47" stroke-width="2.4" fill="none"/><path d="M120 60 C132 70 136 120 136 196" stroke="#3f6ed8" stroke-width="2.4" fill="none"/>' +
+      [[92, 150], [96, 120], [100, 92]].map(([x, y]) => '<path d="M' + x + ' ' + y + ' C' + (x + 12) + ' ' + (y - 6) + ' ' + (x + 24) + ' ' + (y - 4) + ' ' + (x + 36 + (y - 92) * 0.05) + ' ' + y + '" stroke="#b7507a" stroke-width="1.2" fill="none"/>').join('') +
+      '<path d="M110 198 V52" stroke="#86d9b6" stroke-width="6" stroke-linecap="round"/>' +
+      '<ellipse cx="66" cy="120" rx="3" ry="6" fill="#f8f2e6"/><ellipse cx="156" cy="100" rx="3" ry="6" fill="#f8f2e6"/>' +
+      dgLabels([['Microvilosidades (borda em escova)', 16, 140, 32], ['Enterócito', 38, 156, 70], ['Célula caliciforme (muco)', 60, 157, 100], ['Capilar arterial', 82, 96, 110], ['Capilar venoso → veia porta', 104, 134, 140], ['açúcares, aminoácidos, água', 118, 134, 140], ['Vaso lácteo → linfa (gorduras)', 140, 112, 160], ['Cripta intestinal (renovação', 170, 52, 178], ['das células a cada 3–5 dias)', 184, 52, 178]].map(r => r[0].startsWith('açúcares') || r[0].startsWith('das células') ? [r[0], r[1], -99, -99] : r), 206).replace(/<path class="ld" d="M-99[^>]*>|<circle class="lp" cx="-99"[^>]*>/g, '') + '</svg>';
+  }
+};
+const DIAGRAM_TITLE = { pele: 'Corte da pele', unhas: 'Corte da ponta do dedo', rim: 'Néfron, a unidade de filtração do rim (cerca de 1 milhão por rim)', delgado: 'Vilosidade intestinal (cerca de 1 mm de altura)' };
+function figureHTML(key) { return '<figure class="fig">' + DIAGRAMS[key]() + '<figcaption>' + DIAGRAM_TITLE[key] + ' · esquema fora de escala</figcaption></figure>'; }
+
+
+
+/* =====================================================================
+   Legendas na tela
+   ===================================================================== */
+const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+const LGROUPS = [];
+function addLabelGroups(meshes) {
+  const map = new Map(), v = new THREE.Vector3();
+  meshes.forEach(m => { const u = m.userData, k = u.id + '|' + (u.side || 0); let g = map.get(k); if (!g) map.set(k, g = { id: u.id, side: u.side || 0, meshes: [] }); g.meshes.push(m); });
+  map.forEach(g => {
+    const b = boxOf(g.meshes), c = b.getCenter(new THREE.Vector3()); let best = null, bd = Infinity;
+    for (const m of g.meshes) { const p = m.geometry.attributes.position, step = Math.max(1, Math.floor(p.count / 250)); for (let i = 0; i < p.count; i += step) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); const d = v.distanceToSquared(c); if (d < bd) { bd = d; best = v.clone(); } } }
+    const d = DB[g.id];
+    g.anchor = best || c; g.r = Math.max(b.getSize(v).length() / 2, 0.002); g.text = d.name; g.sub = d.sides.size === 2 && g.side ? 'lado ' + sideName(g.side) : d.group; g.color = SYS[d.sys].color;
+    if (g.meshes[0].parent && (g.meshes[0].parent === heartRoot || isDesc(heartRoot, g.meshes[0]) || isDesc(lungRoot, g.meshes[0]))) g.moving = g.meshes[0];
+    LGROUPS.push(g);
+  });
+  // pontos de referência (acidentes ósseos, partes do rosto etc.)
+  const keys = new Set(meshes.map(m => m.name));
+  for (const f of IDX.features) if (keys.has(THREE.PropertyBinding.sanitizeNodeName(f.of))) { const inf = BYKEY[f.of]; LGROUPS.push({ id: inf.id, side: inf.side, feature: true, anchor: toV(f.p), r: 0.006, text: cleanName(ptName(f.n)), sub: DB[inf.id].name, color: '#eadfc8' }); }
+}
+function isDesc(root, o) { for (let p = o.parent; p; p = p.parent) if (p === root) return true; return false; }
+const labelBox = $('labels'), leaders = $('leaders'), labelPool = []; let lastLabel = 0;
+function labelEl(i) {
+  if (!labelPool[i]) {
+    const el = document.createElement('button'); el.className = 'lbl'; el.type = 'button'; el.innerHTML = '<span></span><small></small>';
+    el.addEventListener('click', () => { const g = el._g; if (g) { stopSpinOnUse(); select(g.id, g.side, g.feature ? g.text : '', { fly: !g.feature }); if (g.feature) flyTo(g.anchor.clone(), 0.035); } });
+    labelBox.appendChild(el); labelPool[i] = el;
+  }
+  return labelPool[i];
+}
+function uiRects() { return ['panel', 'info', 'tour', 'places', 'status', 'nav', 'isoBanner'].map(id => { const el = $(id); if (!el || el.hidden) return null; const r = el.getBoundingClientRect(); if (!r.width || r.right < 0 || r.left > innerWidth) return null; return r; }).filter(Boolean); }
+function updateLabels(now, force) {
+  if (!force && now - lastLabel < 120) return; lastLabel = now;
+  let n = 0, path = '';
+  if (state.labels && !fly && LGROUPS.length) {
+    const W = innerWidth, H = innerHeight, k = H / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+    const skinOpaque = SYS.skin.on && SYS.skin.op >= 0.85, muscleOpaque = SYS.muscle.on && SYS.muscle.op >= 0.8;
+    const planes = renderer.clippingPlanes, v = new THREE.Vector3(), cands = [];
+    for (const g of LGROUPS) {
+      if (!isOn(g.id)) continue;
+      const sys = DB[g.id].sys, sel = state.sel === g.id && (!state.selSide || !g.side || g.side === state.selSide), th = state.tourHi && state.tourHi.has(g.id);
+      if (tour.def && !th && !sel) continue;
+      if (skinOpaque && sys !== 'skin') continue;
+      if (muscleOpaque && !skinOpaque && sys !== 'muscle' && sys !== 'skin') continue;
+      if (!skinOpaque && sys === 'skin' && !g.feature && !sel) continue;
+      const a = g.moving ? v.copy(g.anchor) : g.anchor;
+      if (planes.length && planes[0].distanceToPoint(a) < 0) continue;
+      const dist = camera.position.distanceTo(a);
+      v.copy(a).project(camera);
+      if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) continue;
+      const pr = g.r * k / dist;
+      if (g.feature) { if (dist > 0.3 || pr < 28) continue; }
+      else if (!sel && !th && pr < 18) continue;
+      cands.push({ g, x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, pr: pr * (g.feature ? 0.35 : 1) + (sel ? 1e6 : 0) + (th ? 5e5 : 0) });
+    }
+    cands.sort((a, b) => b.pr - a.pr);
+    const placed = uiRects().map(r => ({ l: r.left - 4, t: r.top - 4, r: r.right + 4, b: r.bottom + 4 }));
+    const max = W < 640 ? 10 : 24, hit = a => placed.some(b => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t);
+    for (const c of cands) {
+      if (n >= max) break;
+      const w = Math.max(c.g.text.length * 6.4, c.g.sub.length * 5.4) + 20, h = 32; let ok = null;
+      for (const [dx, dy] of [[14, -h - 12], [-w - 14, -h - 12], [14, 12], [-w - 14, 12]]) { const r = { l: c.x + dx, t: c.y + dy, r: c.x + dx + w, b: c.y + dy + h }; if (r.l < 4 || r.t < 4 || r.r > W - 4 || r.b > H - 4 || hit(r)) continue; ok = r; break; }
+      if (!ok) continue;
+      placed.push(ok, { l: c.x - 3, t: c.y - 3, r: c.x + 3, b: c.y + 3 });
+      const el = labelEl(n++); el._g = c.g; el.style.setProperty('--c', c.g.color); el.classList.toggle('feat', !!c.g.feature);
+      if (el._t !== c.g.text + c.g.sub) { el._t = c.g.text + c.g.sub; el.firstChild.textContent = c.g.text; el.lastChild.textContent = c.g.sub; el.title = DB[c.g.id].latin; }
+      el.style.transform = 'translate(' + Math.round(ok.l) + 'px,' + Math.round(ok.t) + 'px)'; el.hidden = false;
+      const ex = ok.l < c.x ? ok.r : ok.l, ey = ok.t < c.y ? ok.b - 6 : ok.t + 6;
+      path += 'M' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + 'L' + ex.toFixed(1) + ' ' + ey.toFixed(1) + 'M' + (c.x + 2.2).toFixed(1) + ' ' + c.y.toFixed(1) + 'a2.2 2.2 0 1 0 -4.4 0a2.2 2.2 0 1 0 4.4 0';
+    }
+  }
+  for (let i = n; i < labelPool.length; i++) labelPool[i].hidden = true;
+  leaders.firstChild.setAttribute('d', path);
+}
+
+/* =====================================================================
+   Percursos animados: comida e água (caminhos extraídos dos órgãos reais)
+   ===================================================================== */
+const Pth = k => PATHS[k] ? PATHS[k].map(toV) : [];
+const ctr = (n, s) => { const c = cOf(n, s); return c ? [c] : []; };
+function chain(parts) {
+  const pts = [];
+  for (let p of parts) {
+    let arr = Array.isArray(p) ? p.map(toV) : p.p.map(toV);
+    if (!arr.length) continue;
+    if (!Array.isArray(p) && p.up !== undefined) { if ((arr[0].y > arr[arr.length - 1].y) === p.up) arr.reverse(); }
+    else if (pts.length && arr.length > 1) { const last = pts[pts.length - 1]; if (last.distanceTo(arr[arr.length - 1]) < last.distanceTo(arr[0])) arr.reverse(); }
+    arr.forEach(q => { if (!pts.length || pts[pts.length - 1].distanceTo(q) > 0.003) pts.push(q); });
+  }
+  if (pts.length < 2) pts.push(pts[0] ? pts[0].clone().add(V(0, -0.01, 0)) : V(0, 1, 0), V(0, 0.99, 0));
+  return new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+}
+function nearestOn(curve, p) { let best = null, bd = 9; for (let i = 0; i <= 60; i++) { const q = curve.getPointAt(i / 60); const d = q.distanceTo(p); if (d < bd) { bd = d; best = q; } } return best; }
+let TOURS = null;
+function makeTours() {
+  const lips = [V(0, 1.533, 0.1), V(0, 1.53, 0.075)];
+  const tongue = ctr('Tongue'), oro = Pth('Oropharynx'), laryngo = Pth('Laryngopharynx'), eso = Pth('Oesophagus');
+  const stomach = Pth('Stomach'), duo = Pth('Duodenum'), jej = Pth('Jejunum');
+  const asc = Pth('Ascending colon'), trans = Pth('Transverse colon'), desc = Pth('Descending colon'), sig = Pth('Sigmoid colon');
+  const smv = Pth('Superior mesenteric vein'), portal = Pth('Hepatic portal vein'), liver = ctr('Liver'), hep = Pth('Hepatic veins'), ivcT = Pth('Inferior vena cava (thoracic part)');
+  const RA = ctr('Right atrium'), RV = ctr('Right ventricle'), LA = ctr('Left atrium'), LV = ctr('Left ventricle');
+  const ptrunk = Pth('Pulmonary trunk'), lpa = Pth('Left pulmonary artery'), lung = ctr('Superior lobe of left lung'), lpv = Pth('Left superior pulmonary vein');
+  const aoAsc = Pth('Ascending aorta'), aoT = Pth('Thoracic aorta'), aoA = Pth('Abdominal aorta'), renA = Pth('Left renal artery');
+  const kid = ctr('Kidney', 1), pelvis = ctr('Renal pelvis', 1), ureter = Pth('Ureter.l'), bladder = ctr('Urinary bladder'), urethra = Pth('Urethra');
+  const anal = cOf('External anal sphincter') || V(0, 0.79, -0.04);
+  const duoC = chain([duo]);
+  const bile = chain([ctr('Gallbladder'), Pth('Bile duct'), [nearestOn(duoC, toV(Pth('Bile duct').slice(-1)[0] || [0, 1.08, 0.03]))]]);
+  const panc = chain([Pth('Pancreatic duct'), [nearestOn(duoC, toV((Pth('Pancreatic duct')[0]) || [0, 1.08, 0.03]))]]);
+  const sal = s => chain([ctr('Parotid gland', s), [V(s * 0.035, 1.535, 0.06), V(s * 0.012, 1.53, 0.07)]]);
+  const nutr = chain([smv, portal, liver]);
+  const ctxFood = d => ['digest', 'heart', 'skin'].includes(d.sys) || (d.sys === 'vein' && /portal|mesenteric|Hepatic veins|vena cava/i.test(d.en)) || (d.sys === 'skeleton' && /Vertebra|rib$|sternum|Xiphoid|Hip bone|Sacrum|Coccyx|Mandible|Maxilla|tooth|Incisor|Canine|molar/i.test(d.en));
+  const ctxWater = d => ['digest', 'heart', 'urinary', 'skin'].includes(d.sys) || (d.sys === 'resp' && /lung|Trachea|main bronchus/.test(d.en)) || (d.sys === 'endocrine' && /Suprarenal/.test(d.en)) || (d.sys === 'artery' && /aorta|renal artery|Pulmonary trunk|pulmonary artery/i.test(d.en)) || (d.sys === 'vein' && /portal|mesenteric|Hepatic veins|vena cava|pulmonary vein|renal vein/i.test(d.en)) || (d.sys === 'skeleton' && /Vertebra|rib$|sternum|Hip bone|Sacrum/i.test(d.en));
+  const C = { bolo: '#d2a66a', quimo: '#dcc85c', nutri: '#ffd25a', fezes: '#86562b', agua: '#5cbcff', urina: '#f3d66b' };
+  const idsOf = re => Object.keys(DB).filter(id => re.test(DB[id].en));
+  TOURS = {
+    comida: {
+      name: 'Caminho da comida', ctx: ctxFood, need: ['digest', 'vein', 'heart', 'skeleton', 'skin'], total: 'Da boca à evacuação: de 24 a 72 horas',
+      steps: [
+        { t: 'Boca: mastigação e saliva', time: '5 a 30 segundos', hi: idsOf(/^(Tongue|Parotid gland|Submandibular gland|Sublingual gland|Mandible|.*(Incisor|Canine|molar).*)$/i), path: chain([lips, tongue]), c: [C.bolo, C.bolo], view: V(0.9, 0.1, 1), dur: 6,
+          txt: 'Os dentes cortam (incisivos) e trituram (molares) o alimento. As glândulas salivares liberam de 1 a 1,5 litro de saliva por dia: a amilase salivar começa a digerir o amido e a lipase lingual, as gorduras. A língua mistura tudo e forma o bolo alimentar.',
+          streams: [{ c: sal(1), color: '#bfe3ff' }, { c: sal(-1), color: '#bfe3ff' }] },
+        { t: 'Faringe: deglutição', time: 'cerca de 1 segundo', hi: idsOf(/pharynx|Epiglottis|Soft palate|Uvula/i), path: chain([tongue, { p: oro, up: false }, { p: laryngo, up: false }, eso.length ? [eso.reduce((a, b) => a[1] > b[1] ? a : b)] : []]), c: [C.bolo, C.bolo], view: V(1, 0.1, 0.3), dur: 4, peri: { amp: 0.004, w: 0.02 },
+          txt: 'A língua empurra o bolo para a faringe e a deglutição vira um reflexo involuntário. O palato mole fecha a passagem para o nariz e a epiglote cobre a laringe, por isso não dá para respirar e engolir ao mesmo tempo.' },
+        { t: 'Esôfago: peristaltismo', time: '5 a 10 segundos', hi: idsOf(/^Oesophagus$/), path: chain([{ p: eso, up: false }]), peri: { amp: 0.0045, w: 0.022 }, c: [C.bolo, C.bolo], view: V(1, 0.15, 0.5), dur: 6,
+          txt: 'Ondas de contração empurram o bolo pelos 25 cm do esôfago, mesmo de cabeça para baixo. No fim, o esfíncter esofágico inferior se abre para o estômago e logo se fecha para impedir o refluxo do ácido.' },
+        { t: 'Estômago: digestão química e mecânica', time: '2 a 4 horas', hi: idsOf(/^Stomach$/), path: chain([eso.length ? [eso.reduce((a, b) => a[1] < b[1] ? a : b)] : [], stomach]), peri: { amp: 0.006, w: 0.03, churn: true }, c: [C.bolo, C.quimo], view: V(0.25, 0.1, 1), dur: 8,
+          txt: 'Três camadas musculares misturam o bolo com o suco gástrico: ácido clorídrico (pH entre 1,5 e 3,5), que mata microrganismos, e pepsina, que começa a digerir as proteínas. O resultado é uma pasta, o quimo, liberada aos poucos pelo piloro.' },
+        { t: 'Duodeno: bile e suco pancreático', time: 'alguns minutos', hi: idsOf(/^(Duodenum|Gallbladder|Pancreas|Bile duct|Pancreatic duct|Liver)$/), path: chain([stomach.length ? [stomach[stomach.length - 1]] : [], duo]), peri: { amp: 0.0045, w: 0.02 }, c: [C.quimo, C.quimo], view: V(0.1, 0.2, 1), dur: 7,
+          txt: 'Pela papila duodenal chegam a bile, produzida no fígado e guardada na vesícula, que emulsiona as gorduras, e o suco pancreático, com bicarbonato (neutraliza o ácido) e enzimas para amido, gorduras e proteínas.',
+          streams: [{ c: bile, color: '#7fd06a' }, { c: panc, color: '#ffe08a' }] },
+        { t: 'Jejuno e íleo: absorção', time: '3 a 5 horas', hi: idsOf(/^Jejunum$/), path: chain([duo.length ? [duo[duo.length - 1]] : [], jej]), peri: { amp: 0.004, w: 0.018 }, c: [C.quimo, C.quimo], view: V(0.15, 0.1, 1), dur: 11, fig: 'delgado',
+          txt: 'Nos 6 a 7 metros de intestino delgado, enzimas da borda em escova terminam a digestão. Vilosidades e microvilosidades absorvem os nutrientes: açúcares, aminoácidos e água vão para o sangue; as gorduras, em quilomícrons, vão para a linfa. O íleo final absorve a vitamina B12 e os sais biliares.',
+          streams: [{ c: nutr, color: C.nutri }] },
+        { t: 'Nutrientes: veia porta e fígado', time: 'minutos após a absorção', hi: idsOf(/^(Hepatic portal vein|Superior mesenteric vein|Liver|Hepatic veins|Inferior vena cava.*|Right atrium)$/), path: chain([smv, portal, liver, hep, ivcT, RA]), c: [C.nutri, C.nutri], view: V(-0.3, 0.15, 1), dur: 8,
+          txt: 'Este é o caminho do que foi absorvido. O sangue do intestino passa primeiro pelo fígado, que guarda a glicose como glicogênio, monta proteínas e neutraliza toxinas e medicamentos. Depois segue pelas veias hepáticas e pela veia cava inferior até o coração, que o distribui ao corpo.' },
+        { t: 'Ceco e cólon ascendente', time: 'algumas horas', hi: idsOf(/^(Ascending colon|Vermiform appendix)$/), path: chain([{ p: asc, up: true }]), peri: { amp: 0.006, w: 0.03 }, c: [C.quimo, '#b8934a'], view: V(0.2, 0.1, 1), dur: 6,
+          txt: 'O resíduo que não foi absorvido, cerca de 1,5 litro de líquido por dia, passa pela valva ileocecal para o ceco, onde fica o apêndice, e sobe pelo cólon ascendente.' },
+        { t: 'Cólon transverso e descendente', time: '10 a 40 horas', hi: idsOf(/^(Transverse colon|Descending colon)$/), path: chain([asc.length ? [asc.reduce((a, b) => a[1] > b[1] ? a : b)] : [], trans, { p: desc, up: false }]), peri: { amp: 0.006, w: 0.03 }, c: ['#b8934a', C.fezes], view: V(0.1, 0.1, 1), dur: 9,
+          txt: 'O intestino grosso absorve água e sais e transforma o resíduo em fezes. Trilhões de bactérias fermentam as fibras, produzindo vitamina K e ácidos graxos que nutrem a parede do cólon. Algumas vezes por dia, movimentos de massa empurram o conteúdo adiante.',
+          streams: [{ c: chain([Pth('Inferior mesenteric vein')]), color: C.agua }] },
+        { t: 'Sigmoide e reto', time: 'até a evacuação', hi: idsOf(/^Sigmoid colon$/), path: chain([desc.length ? [desc.reduce((a, b) => a[1] < b[1] ? a : b)] : [], sig, [anal.clone().add(V(0, 0.04, -0.01))]]), peri: { amp: 0.006, w: 0.03 }, c: [C.fezes, C.fezes], view: V(1, 0.1, 0.4), dur: 6,
+          txt: 'As fezes ficam no cólon sigmoide. Quando passam ao reto e o distendem, receptores na parede geram a vontade de evacuar.' },
+        { t: 'Canal anal: eliminação', time: 'total de 24 a 72 horas', hi: idsOf(/anal sphincter|Puborectalis|Pubo-analis/i), path: chain([[anal.clone().add(V(0, 0.04, -0.01)), anal, anal.clone().add(V(0, -0.02, -0.01))]]), c: [C.fezes, C.fezes], view: V(1, 0, 0.3), dur: 4,
+          txt: 'Dois esfíncteres controlam a saída: o interno, involuntário, e o externo, que obedece à vontade. Todo o percurso, da boca à evacuação, leva em geral de 24 a 72 horas, dependendo da dieta, da hidratação e da pessoa.' }
+      ]
+    },
+    agua: {
+      name: 'Caminho da água', ctx: ctxWater, need: ['digest', 'vein', 'artery', 'heart', 'resp', 'urinary', 'endocrine', 'skeleton', 'skin'], total: 'Balanço diário: entram cerca de 2,3 litros e saem 2,3 litros',
+      steps: [
+        { t: 'Boca e faringe', time: '1 a 2 segundos', hi: idsOf(/^(Tongue|Epiglottis|Oropharynx|Laryngopharynx)$/), path: chain([lips, tongue, { p: oro, up: false }, { p: laryngo, up: false }]), c: [C.agua, C.agua], view: V(0.9, 0.1, 1), dur: 4,
+          txt: 'A água passa direto pela boca. Na deglutição, a epiglote fecha a laringe para que o líquido não vá para os pulmões.' },
+        { t: 'Esôfago', time: '1 a 3 segundos', hi: idsOf(/^Oesophagus$/), path: chain([{ p: eso, up: false }]), peri: { amp: 0.003, w: 0.03 }, c: [C.agua, C.agua], view: V(1, 0.15, 0.5), dur: 4,
+          txt: 'Líquidos descem mais rápido que sólidos, ajudados pela gravidade e por uma onda peristáltica.' },
+        { t: 'Estômago', time: '10 a 20 minutos', hi: idsOf(/^Stomach$/), path: chain([stomach]), peri: { amp: 0.004, w: 0.03 }, c: [C.agua, C.agua], view: V(0.25, 0.1, 1), dur: 5,
+          txt: 'O estômago absorve pouca água. Com ele vazio, metade de um copo de água passa ao duodeno em cerca de 10 a 20 minutos; com comida, demora mais.' },
+        { t: 'Intestino delgado: absorção por osmose', time: 'começa em ~5 minutos', hi: idsOf(/^(Duodenum|Jejunum|Superior mesenteric vein)$/), path: chain([duo, jej.slice(0, Math.ceil(jej.length / 2))]), peri: { amp: 0.003, w: 0.018 }, c: [C.agua, C.agua], view: V(0.15, 0.1, 1), dur: 9, fig: 'delgado',
+          txt: 'Cerca de 8 a 9 litros passam pelo intestino delgado por dia, somando o que bebemos e as secreções digestivas; ele reabsorve uns 80%. A água segue o sódio e a glicose por osmose, atravessa os enterócitos e entra nos capilares das vilosidades. O intestino grosso recupera quase todo o resto.',
+          streams: [{ c: nutr, color: C.agua }] },
+        { t: 'Veia porta e fígado', time: 'minutos', hi: idsOf(/^(Hepatic portal vein|Superior mesenteric vein|Liver)$/), path: chain([smv, portal, liver]), c: [C.agua, C.agua], view: V(-0.3, 0.15, 1), dur: 5,
+          txt: 'O sangue que sai do intestino, agora com mais água, vai primeiro ao fígado pela veia porta.' },
+        { t: 'Veia cava inferior e coração direito', time: 'segundos', hi: idsOf(/^(Hepatic veins|Inferior vena cava.*|Right atrium|Right ventricle)$/), path: chain([liver, hep, ivcT, RA, RV]), c: [C.agua, C.agua], view: V(0.2, 0.1, 1), dur: 5,
+          txt: 'Pelas veias hepáticas e pela veia cava inferior, a água chega ao átrio direito e passa ao ventrículo direito.' },
+        { t: 'Pulmões', time: 'cerca de 5 segundos', hi: idsOf(/^(Pulmonary trunk|Left pulmonary artery|Superior lobe of left lung|Inferior lobe of left lung|Left superior pulmonary vein)$/), path: chain([RV, ptrunk, lpa, lung, lpv]), c: [C.agua, C.agua], view: V(0.15, 0.1, 1), dur: 7,
+          txt: 'O ventrículo direito bombeia o sangue aos pulmões para trocar gases. Uma parte da água sai como vapor na expiração, cerca de 350 ml por dia; é o que embaça um espelho.' },
+        { t: 'Coração esquerdo e aorta', time: 'segundos', hi: idsOf(/^(Left atrium|Left ventricle|Ascending aorta|Thoracic aorta)$/), path: chain([lpv.length ? [lpv[lpv.length - 1]] : [], LA, LV, aoAsc, { p: aoT, up: false }]), c: [C.agua, C.agua], view: V(0.3, 0.1, 1), dur: 6,
+          txt: 'O ventrículo esquerdo lança o sangue na aorta e ele chega a todos os tecidos. A água é cerca de 60% do peso de um adulto, dois terços dela dentro das células. A pele perde por dia uns 450 ml por evaporação e suor.' },
+        { t: 'Artéria renal', time: 'segundos', hi: idsOf(/^(Abdominal aorta|Left renal artery)$/), path: chain([{ p: aoA.filter(p => p[1] > (cOf('Left renal artery') || V(0, 1.09, 0)).y - 0.01), up: false }, renA, kid]), c: [C.agua, C.agua], view: V(0.2, 0.1, -1), dur: 4,
+          txt: 'Os rins recebem de 20 a 25% de todo o sangue bombeado pelo coração, mais de um litro por minuto.' },
+        { t: 'Rim: filtração no néfron', time: 'contínua', hi: idsOf(/^(Kidney|Renal pelvis)$/), path: chain([kid, [kid[0] ? kid[0].clone().add(V(0.015, 0.025, -0.005)) : V(0, 1, 0), kid[0] ? kid[0].clone().add(V(0.022, -0.01, -0.006)) : V(0, 1, 0)], pelvis]), c: [C.agua, C.urina], view: V(0.3, 0.1, -1), dur: 8, fig: 'rim',
+          txt: 'Os glomérulos filtram cerca de 180 litros de plasma por dia e os túbulos reabsorvem 99% dessa água. O hormônio antidiurético, liberado pela hipófise, regula a reabsorção final no ducto coletor: com sede, a urina fica concentrada; bebendo muito, fica diluída. Sobram de 1 a 2 litros de urina por dia.' },
+        { t: 'Ureter', time: 'ondas a cada 10 a 60 s', hi: idsOf(/^Ureter$/), path: chain([pelvis, { p: ureter, up: false }]), peri: { amp: 0.002, w: 0.012 }, c: [C.urina, C.urina], view: V(1, 0.05, 0.6), dur: 6,
+          txt: 'A urina não desce só pela gravidade: de 1 a 5 ondas peristálticas por minuto a levam do rim à bexiga, mesmo deitado.' },
+        { t: 'Bexiga', time: 'horas', hi: idsOf(/^Urinary bladder$/), path: chain([ureter.length ? [ureter.reduce((a, b) => a[1] < b[1] ? a : b)] : [], bladder, urethra.length ? [urethra.reduce((a, b) => a[1] > b[1] ? a : b)] : []]), c: [C.urina, C.urina], view: V(0.6, 0.05, 1), dur: 5,
+          txt: 'A bexiga armazena de 400 a 600 ml. A primeira sensação de enchimento aparece por volta de 150 ml e a vontade forte entre 300 e 400 ml.' },
+        { t: 'Uretra: eliminação', time: 'balanço do dia', hi: idsOf(/^(Urethra|Urinary bladder)$/), path: chain([{ p: urethra, up: false }]), peri: { amp: 0.0015, w: 0.01 }, c: [C.urina, C.urina], view: V(0.8, 0, 1), dur: 5,
+          txt: 'Um esfíncter interno, involuntário, e um externo, voluntário, controlam a saída. Balanço típico de um adulto por dia: entram cerca de 2,1 litros por bebidas e alimentos e 0,2 litro gerado pelo metabolismo; saem 1,4 litro na urina, 0,45 pela pele, 0,35 pelos pulmões e 0,1 nas fezes.' }
+      ]
+    }
+  };
+}
+const tour = { def: null, key: null, i: 0, t: 0, hold: 0, playing: true, speed: 1, saved: null, objs: null, streams: [], hist: [] };
+function glowTexture() { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); }
+function tourObjects() {
+  if (tour.objs) return tour.objs;
+  const bolus = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true })); bolus.renderOrder = 40;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), depthTest: false, transparent: true, blending: THREE.AdditiveBlending })); glow.renderOrder = 39;
+  const trail = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.45 }), 26); trail.renderOrder = 38; trail.frustumCulled = false;
+  return tour.objs = { bolus, glow, trail };
+}
+function clearStreams() { tour.streams.forEach(s => { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }); tour.streams = []; }
+async function startTour(key) {
+  if (tour.def) stopTour(true);
+  deselect();
+  $('tour').hidden = false; $('tTitle').textContent = 'Preparando o percurso…'; $('tText').textContent = 'Baixando as camadas necessárias.'; $('tFig').innerHTML = ''; $('tProg').innerHTML = ''; $('tTime').textContent = ''; $('tTotal').textContent = '';
+  document.body.classList.add('touring');
+  if (window.innerWidth <= 860) $('panel').classList.remove('open');
+  const needed = { comida: ['digest', 'vein', 'heart', 'skeleton', 'skin'], agua: ['digest', 'vein', 'artery', 'heart', 'resp', 'urinary', 'endocrine', 'skeleton', 'skin'] }[key];
+  await Promise.all(needed.map(s => ensureSys(s)));
+  if (!TOURS) makeTours();
+  const def = TOURS[key];
+  tour.saved = { iso: state.iso, on: {}, op: {} };
+  for (const k in SYS) { tour.saved.on[k] = SYS[k].on; tour.saved.op[k] = SYS[k].op; }
+  needed.forEach(s => SYS[s].on = true);
+  const dim = { digest: 0.4, urinary: 0.5, resp: 0.3, heart: 0.7, skeleton: 0.45, skin: Math.min(SYS.skin.op, 0.3), vein: 0.85, artery: 0.85, endocrine: 0.7 };
+  for (const k in dim) { SYS[k].op = dim[k]; applyOpacity(k); syncSlider(k); }
+  state.iso = new Set(Object.keys(DB).filter(id => def.ctx(DB[id])));
+  tour.def = def; tour.key = key; tour.playing = true; $('tPlay').textContent = 'Pausar';
+  const o = tourObjects(); scene.add(o.bolus, o.glow, o.trail);
+  $('tName').textContent = def.name;
+  const prog = $('tProg'); prog.innerHTML = '';
+  def.steps.forEach((st, i) => { const b = document.createElement('button'); b.title = (i + 1) + '. ' + st.t; b.setAttribute('aria-label', 'Etapa ' + (i + 1) + ': ' + st.t); b.onclick = () => goStep(i); prog.appendChild(b); });
+  refreshVis();
+  goStep(0);
+}
+function goStep(i) {
+  const def = tour.def; if (!def) return;
+  i = clamp(i, 0, def.steps.length - 1);
+  clearStreams(); U.bol.value.w = 0;
+  tour.i = i; tour.t = 0; tour.hold = 0; tour.hist = [];
+  const st = def.steps[i];
+  state.tourHi = new Set(st.hi); paint();
+  const b = new THREE.Box3().setFromPoints(st.path.getSpacedPoints(40));
+  flyTo(b.getCenter(new THREE.Vector3()), clamp(b.getSize(new THREE.Vector3()).length() * 0.6, 0.075, 0.26), st.view, 1100);
+  $('tStep').textContent = 'Etapa ' + (i + 1) + ' de ' + def.steps.length;
+  $('tTitle').textContent = st.t; $('tTime').textContent = st.time; $('tText').textContent = st.txt;
+  $('tFig').innerHTML = st.fig ? figureHTML(st.fig) : '';
+  $('tTotal').textContent = i === def.steps.length - 1 ? def.total : '';
+  $('tProg').querySelectorAll('button').forEach((x, k) => { x.classList.toggle('done', k < i); x.classList.toggle('on', k === i); });
+  $('tPrev').disabled = i === 0; $('tNext').textContent = i === def.steps.length - 1 ? 'Recomeçar' : 'Próxima';
+  (st.streams || []).forEach(sd => {
+    const n = sd.n || 26, mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0019, 8, 6), new THREE.MeshBasicMaterial({ color: sd.color, depthTest: false, transparent: true, opacity: 0.9 }), n);
+    mesh.renderOrder = 37; mesh.frustumCulled = false; scene.add(mesh);
+    tour.streams.push({ mesh, c: sd.c, L: Math.max(0.01, sd.c.getLength()), n });
+  });
+  updateLabels(performance.now(), true);
+}
+const _m4 = new THREE.Matrix4(), _c1 = new THREE.Color(), _c2 = new THREE.Color();
+function updateTour(dt) {
+  if (!tour.def) return;
+  const st = tour.def.steps[tour.i], o = tour.objs;
+  if (tour.playing) tour.t += dt * tour.speed;
+  const u = clamp(tour.t / st.dur, 0, 1), ue = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+  const pos = st.path.getPointAt(ue);
+  o.bolus.position.copy(pos); o.glow.position.copy(pos);
+  _c1.set(st.c[0]); _c2.set(st.c[1]); _c1.lerp(_c2, ue);
+  o.bolus.material.color.copy(_c1); o.glow.material.color.copy(_c1);
+  const d = camera.position.distanceTo(pos), sc = clamp(d / 0.35, 0.5, 2.2);
+  o.bolus.scale.setScalar(sc); o.glow.scale.setScalar(clamp(d * 0.12, 0.018, 0.1));
+  if (tour.playing) { tour.hist.unshift(pos.clone()); if (tour.hist.length > 26) tour.hist.pop(); }
+  for (let k = 0; k < 26; k++) { const p = tour.hist[Math.min(k, tour.hist.length - 1)] || pos; const s = 0.0048 * (1 - k / 28) * sc; _m4.makeScale(s, s, s).setPosition(p); o.trail.setMatrixAt(k, _m4); }
+  o.trail.instanceMatrix.needsUpdate = true; o.trail.material.color.copy(_c1);
+  if (st.peri) {
+    let p = pos;
+    if (st.peri.churn) p = st.path.getPointAt((tour.t * 0.08) % 1);
+    U.bol.value.set(p.x, p.y, p.z, st.peri.amp); U.bolW.value = st.peri.w;
+  } else U.bol.value.w = 0;
+  const time = performance.now() / 1000;
+  tour.streams.forEach(s => { for (let k = 0; k < s.n; k++) { const ph = ((k / s.n) + time * 0.035 / s.L) % 1; const q = s.c.getPointAt(ph); _m4.makeTranslation(q.x, q.y, q.z); s.mesh.setMatrixAt(k, _m4); } s.mesh.instanceMatrix.needsUpdate = true; });
+  if (!fly && !down && tour.playing) controls.target.lerp(pos, 0.025);
+  if (u >= 1 && tour.playing) { tour.hold += dt; if (tour.hold > 1.2) { if (tour.i < tour.def.steps.length - 1) goStep(tour.i + 1); else { tour.playing = false; $('tPlay').textContent = 'Continuar'; } } }
+}
+function stopTour(silent) {
+  document.body.classList.remove('touring'); $('tour').hidden = true;
+  if (!tour.def) return;
+  clearStreams(); U.bol.value.w = 0;
+  const o = tour.objs; scene.remove(o.bolus, o.glow, o.trail);
+  const sv = tour.saved;
+  for (const k in SYS) { SYS[k].on = sv.on[k]; SYS[k].op = sv.op[k]; applyOpacity(k); syncSlider(k); }
+  state.iso = sv.iso; state.tourHi = null; tour.def = null;
+  refreshVis(); paint();
+  if (!silent) home();
+}
+function syncSlider(k) { const r = $('op-' + k); if (r) { r.value = Math.round(SYS[k].op * 100); r.style.setProperty('--p', r.value + '%'); } }
+$('tClose').onclick = () => stopTour();
+$('tPrev').onclick = () => goStep(tour.i - 1);
+$('tNext').onclick = () => { if (!tour.def) return; if (tour.i === tour.def.steps.length - 1) { tour.playing = true; $('tPlay').textContent = 'Pausar'; goStep(0); } else goStep(tour.i + 1); };
+$('tPlay').onclick = () => { if (!tour.def) return; tour.playing = !tour.playing; $('tPlay').textContent = tour.playing ? 'Pausar' : 'Continuar'; };
+$('tSpeed').onclick = () => { tour.speed = tour.speed === 1 ? 2 : tour.speed === 2 ? 0.5 : 1; $('tSpeed').textContent = (tour.speed === 0.5 ? '½' : tour.speed) + '×'; };
+document.addEventListener('click', e => { const f = e.target.closest('.fig'); if (f) f.classList.toggle('big'); else document.querySelectorAll('.fig.big').forEach(x => x.classList.remove('big')); });
+document.querySelectorAll('[data-tour]').forEach(b => b.onclick = () => { stopSpinOnUse(); startTour(b.dataset.tour); });
+
+
+/* =====================================================================
+   Laço de animação
+   ===================================================================== */
+const clock = new THREE.Clock(); let simT = 0;
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', resize);
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (state.flow) U.time.value += dt;
+  if (state.beat) {
+    simT += dt;
+    const ph = (simT * 72 / 60) % 1;
+    heartRoot.scale.setScalar(1 - (Math.exp(-Math.pow((ph - 0.1) / 0.06, 2)) * 0.05 + Math.exp(-Math.pow((ph - 0.32) / 0.08, 2)) * 0.03));
+    const br = 0.5 - 0.5 * Math.cos(simT * Math.PI * 2 / 4.2);
+    lungRoot.scale.set(1 + br * 0.025, 1 + br * 0.035, 1 + br * 0.025);
+  }
+  updateTour(dt);
+  stepFly(now);
+  controls.update();
+  doHover(now);
+  updateStatus(now);
+  updateLabels(now);
+  renderer.render(scene, camera);
+}
+
+/* =====================================================================
+   Inicialização
+   ===================================================================== */
+const loadBar = $('loadBar'), loadMsg = $('loadMsg');
+async function start() {
+  resize(); requestAnimationFrame(frame);
+  camera.position.set(1.6, 2.2, 4.6); controls.target.set(0, 0.9, 0); controls.update();
+  try {
+    loadMsg.textContent = 'Lendo o índice de estruturas…';
+    const j = await fetch(BASE + 'index.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    initIndex(j);
+    VERT = ['Atlas (C1)', 'Axis (C2)', 'Vertebra C3', 'Vertebra C4', 'Vertebra C5', 'Vertebra C6', 'Vertebra C7'].concat(Array.from({ length: 12 }, (_, i) => 'Vertebra T' + (i + 1)), Array.from({ length: 5 }, (_, i) => 'Vertebra L' + (i + 1)))
+      .map(n => { const c = cOf(n); return c && { label: n.replace(/^Atlas \(C1\)$/, 'C1').replace(/^Axis \(C2\)$/, 'C2').replace('Vertebra ', ''), y: c.y }; }).filter(Boolean);
+    $('partCount').textContent = Object.keys(DB).length.toLocaleString('pt-BR');
+    renderLayers(); buildTree(); setupPlaces();
+  } catch (e) { console.error(e); loadMsg.textContent = 'Não foi possível ler os modelos (' + e.message + '). Recarregue a página.'; return; }
+  const first = ['skin', 'skeleton', 'heart', 'artery', 'vein', 'resp', 'digest', 'urinary', 'endocrine', 'sense', 'nervous'];
+  const files = first.flatMap(s => SYS[s].on ? SYS[s].files : []);
+  const total = files.reduce((a, f) => a + (FILE_MB[f] || 1), 0); const got = {};
+  const upd = () => { const sum = Object.values(got).reduce((a, b) => a + b, 0); loadBar.style.width = Math.min(100, sum / total * 100) + '%'; loadMsg.textContent = 'Baixando modelos anatômicos… ' + fmt(sum, 1) + ' de ' + fmt(total, 1) + ' MB'; };
+  let shown = false;
+  const reveal = () => { if (shown) return; shown = true; home(); $('loader').classList.add('done'); setTimeout(() => $('loader').remove(), 800); };
+  await Promise.all(files.map(f => loadFile(f, ev => { got[f] = (ev.loaded || 0) / 1e6; upd(); }).then(() => { got[f] = FILE_MB[f] || got[f]; upd(); if (LOADED.skin && LOADED.skeleton) reveal(); }).catch(err => { console.error(err); toast('Falha ao baixar ' + f + '.'); })));
+  reveal();
+  window.__anatomia = { DB, SYS, select, flyTo, camera, controls, scene, renderer, state, refreshVis, startTour, goStep, tour, PATHS, ensureSys };
+}
+start();
+})();
+</script>
+<!--BODY-END-->
+</body>
+</html>
