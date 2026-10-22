@@ -98,7 +98,6 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;bac
 @keyframes pulse{50%{opacity:.25}}
 .lbl.feat{border-left-color:var(--bone);background:rgba(9,14,20,.68)}
 .lbl.feat span{font-weight:400;font-style:italic}
-.info .en{font-size:11.5px;color:var(--faint);margin:0 0 4px}
 .credit{font-size:11.5px;color:var(--faint);padding:10px 18px 4px;margin:0;line-height:1.5}
 .credit a{color:var(--muted)}
 .loadnote{font:12px var(--f-ui)!important;color:var(--faint)!important;margin-top:6px!important}
@@ -298,7 +297,6 @@ body.touring .info,body.touring .iso-banner{display:none!important}
     <p class="latin" id="iLatin"></p>
     <p class="where" id="iWhere"></p>
     <p class="desc" id="iDesc"></p>
-    <p class="en" id="iEn" hidden></p>
     <div id="iFig"></div>
   </div>
   <div class="info-actions">
@@ -400,7 +398,7 @@ for (const k in SYS) SYS[k].files.forEach(f => { if (!FILE_SYS[f]) FILE_SYS[f] =
 const FILE_MB = { skin: 1.1, hair: 0.03, skeleton: 3.2, joint: 2.4, fascia: 1.6, muscle: 6.9, artery: 3.7, heart: 0.4, vein: 2.3, urinary: 0.1, cavity: 0.4, resp: 0.5, endocrine: 0.1, digest: 0.9, sense: 0.8, nervous: 6.4, lymph: 1.0 };
 
 /* =====================================================================
-   Descrições em português (as demais estruturas mostram o resumo original em inglês)
+   Descrições em português escritas à mão (têm prioridade sobre desc-pt.json)
    ===================================================================== */
 const PT = {
   'Femur': 'O maior e mais resistente osso do corpo, cerca de um quarto da altura. Sua cabeça encaixa no acetábulo formando a articulação do quadril; embaixo, os côndilos formam o joelho com a tíbia e a patela.',
@@ -632,7 +630,7 @@ const $ = id => document.getElementById(id);
 /* =====================================================================
    Dados: índice, nomes, estruturas
    ===================================================================== */
-let IDX = null, NAMES = {}, PATHS = {}, DESC_EN = null;
+let IDX = null, NAMES = {}, PATHS = {}, DESC_PT = null;
 const DB = {}, BYKEY = {}, ALL = [], LOADED = {}, LOADING = {};
 const ptName = n => (NAMES[n] && NAMES[n][0] && !/\?{2,}/.test(NAMES[n][0]) && NAMES[n][0]) || n;
 const laName = n => (NAMES[n] && NAMES[n][1] && !/\?{2,}/.test(NAMES[n][1]) && NAMES[n][1]) || '';
@@ -652,7 +650,7 @@ function initIndex(j) {
 }
 function descFor(d) {
   if (PT[d.en]) return { t: PT[d.en], pt: true };
-  if (DESC_EN && DESC_EN[d.en]) return { t: DESC_EN[d.en], pt: false };
+  if (DESC_PT && DESC_PT[d.en]) return { t: DESC_PT[d.en], pt: true };
   for (const [re, t] of PT_RULES) if (re.test(d.en)) return { t, pt: true, generic: true };
   return { t: 'Parte do grupo ' + d.group.toLowerCase() + ' (' + SYS[d.sys].name.toLowerCase() + ').', pt: true, generic: true };
 }
@@ -819,10 +817,9 @@ async function select(id, side, label, opts) {
   const fill = () => {
     const ds = descFor(d);
     $('iDesc').textContent = ds.t;
-    $('iEn').hidden = ds.pt; $('iEn').textContent = 'Resumo original em inglês (Wikipedia, via Z-Anatomy) · termo: ' + d.en;
   };
   fill();
-  if (!DESC_EN) fetch(BASE + 'desc-en.json').then(r => r.json()).then(j => { DESC_EN = j; if (state.sel === id) fill(); }).catch(() => {});
+  if (!DESC_PT) fetch(BASE + 'desc-pt.json').then(r => r.json()).then(j => { DESC_PT = j; if (state.sel === id) fill(); }).catch(() => {});
   const fig = /Nail plate/.test(d.en) ? 'unhas' : d.sys === 'skin' && !/Hairs|Eyelash/.test(d.en) ? 'pele' : /^Kidney|Renal pelvis/.test(d.en) ? 'rim' : /Jejunum|Duodenum/.test(d.en) ? 'delgado' : null;
   $('iFig').innerHTML = fig ? figureHTML(fig) : '';
   $('iIso').textContent = state.iso && state.iso.has(id) && state.iso.size === 1 ? 'Sair do isolamento' : 'Isolar';
@@ -897,7 +894,7 @@ function renderLayers() {
 let treeBuilt = false;
 function itemEl(id) {
   const d = DB[id], it = document.createElement('div'); it.className = 'item'; it.dataset.id = id;
-  const nb = document.createElement('button'); nb.className = 'iname'; nb.textContent = d.name; nb.title = d.latin || d.en;
+  const nb = document.createElement('button'); nb.className = 'iname'; nb.textContent = d.name; nb.title = d.latin || d.name;
   nb.onclick = async () => { await ensureSys(d.sys); select(id, 0, '', { fly: true, fromPanel: true }); };
   it.appendChild(nb);
   if (d.sides.size === 2) [[1, 'E'], [-1, 'D']].forEach(([s, l]) => { const b = document.createElement('button'); b.className = 'side'; b.textContent = l; b.title = 'Lado ' + sideName(s); b.onclick = async () => { await ensureSys(d.sys); select(id, s, '', { fly: true, fromPanel: true }); }; it.appendChild(b); });

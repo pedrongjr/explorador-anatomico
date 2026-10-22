@@ -20,7 +20,7 @@ O site é publicado pelo GitHub Pages a partir da branch `main` (pasta raiz); ca
 
 - **Modelos anatômicos reais do Z-Anatomy**: cerca de 3.100 peças em 16 camadas (pele e unhas, músculos, fáscias, esqueleto, articulações e ligamentos, coração, artérias, veias, respiratório, digestório, urinário, endócrino, nervoso, olhos e orelhas, linfático, pleura e peritônio). Inclui giros do cérebro, segmentos do fígado, árvore brônquica segmentar, valvas do coração, nervos periféricos com ramos digitais e 760 pontos de referência (acidentes ósseos, partes do rosto) que aparecem ao aproximar.
 - **Corpo neutro**: o sistema genital, os pelos pubianos e o cabelo foram removidos dos modelos.
-- **Nomes em português e latim** para 97% das estruturas (tradução do próprio Z-Anatomy). Cerca de 110 estruturas principais têm descrição própria em português, e grupos como vértebras, costelas, giros, músculos e linfonodos têm uma descrição geral em português; as demais mostram o resumo original em inglês (Wikipedia, via Z-Anatomy).
+- **Tudo em português do Brasil**: nomes revisados e padronizados (com o termo em latim abaixo) e descrições em português para as quase 1.300 estruturas que tinham resumo no Z-Anatomy; as demais têm uma descrição geral do grupo em português.
 - **Percursos animados** da comida (11 etapas) e da água (13 etapas), passando pelos órgãos e vasos reais, com peristaltismo, tempo real de cada fase, legenda e diagramas (vilosidade intestinal, néfron).
 - **Legendas na tela** que aparecem conforme cada estrutura fica grande o bastante, busca, isolar/ocultar, cortes sagital, coronal e transversal, fluxo sanguíneo, batimento e respiração animados.
 - **Diagramas** da pele, da unha, do néfron e da vilosidade.
